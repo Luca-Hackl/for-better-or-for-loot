@@ -313,6 +313,8 @@ const locationSchema = z.object({
   name: z.string().min(1).max(60),
   description: z.string().max(300).nullable().optional(),
   is_hot_drop: z.boolean().default(false),
+  pos_x: z.number().min(0).max(1).nullable().optional(),
+  pos_y: z.number().min(0).max(1).nullable().optional(),
 });
 
 export async function createLocation(input: z.input<typeof locationSchema>) {
@@ -324,8 +326,10 @@ export async function createLocation(input: z.input<typeof locationSchema>) {
       name: parsed.name,
       description: parsed.description ?? null,
       is_hot_drop: parsed.is_hot_drop,
-      // Leave pos_x/pos_y NULL so the map lays new pins out on a non-overlapping
-      // grid (a fixed default would stack every new pin on the same spot).
+      // When placed via a map click we store the exact spot; otherwise leave
+      // NULL so the map lays the new pin out on a non-overlapping grid.
+      pos_x: parsed.pos_x ?? null,
+      pos_y: parsed.pos_y ?? null,
     })
     .select("id")
     .single();

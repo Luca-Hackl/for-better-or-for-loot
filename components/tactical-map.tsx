@@ -23,6 +23,7 @@ export function TacticalMap({
   selectedId,
   onSelect,
   onReposition,
+  onCreateAt,
   backgroundUrl,
   aspectRatio,
   label,
@@ -33,6 +34,7 @@ export function TacticalMap({
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   onReposition?: (id: string, x: number, y: number) => void;
+  onCreateAt?: (x: number, y: number) => void;
   backgroundUrl?: string | null;
   aspectRatio?: number | null;
   label?: string | null;
@@ -104,6 +106,17 @@ export function TacticalMap({
   return (
     <div
       ref={ref}
+      onClick={
+        mode === "edit" && onCreateAt
+          ? (e) => {
+              // only fire for clicks on the empty map (background), not on a pin
+              if (e.target === e.currentTarget) {
+                const p = clientToRel(e.clientX, e.clientY);
+                onCreateAt(p.x, p.y);
+              }
+            }
+          : undefined
+      }
       className={cn(
         "relative w-full select-none overflow-hidden rounded-lg border border-border",
         mode === "edit" && "cursor-crosshair",
