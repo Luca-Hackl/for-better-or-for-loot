@@ -279,7 +279,9 @@ export function PlayMode({
       router.push(`/play/live/${id}`);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start live match");
+      const msg = e instanceof Error ? e.message : "Could not start live match";
+      const schemaish = /column|does not exist|relation|schema cache|status|match_events|function/i.test(msg);
+      setError(msg + (schemaish ? " — has migration 0010 been run in Supabase? Live co-op needs it." : ""));
       setStarting(false);
     }
   }
@@ -484,6 +486,12 @@ export function PlayMode({
       {restored ? (
         <p className="mb-3 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs text-accent">
           Picked up your in-progress match. “Reset” to start fresh.
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="mb-3 rounded-md border border-loss/40 bg-loss/10 px-3 py-2 text-sm text-loss">
+          {error}
         </p>
       ) : null}
 
