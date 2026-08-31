@@ -20,8 +20,12 @@ Both have free tiers that comfortably cover two players. You keep control of all
 1. In the project, open **SQL Editor** → **New query**.
 2. Paste the contents of `supabase/migrations/0001_init.sql`, click **Run**.
 3. New query again → paste `supabase/migrations/0002_seed.sql`, click **Run**.
-   - This creates all tables, row-level security, the stats views, the `screenshots`
-     storage bucket, and seeds the Fort Lyndon drop zones + two placeholder players.
+   - This creates all tables, row-level security, the stats views, and seeds the
+     Fort Lyndon drop zones + two placeholder players. (Both scripts are idempotent —
+     safe to re-run.)
+4. *(Optional — for the screenshot/OCR feature)* First open the **Storage** tab once so
+   Storage gets provisioned, then run `supabase/migrations/0003_storage.sql` to create the
+   `screenshots` bucket. You can skip this; screenshot upload just stays unavailable.
 
 > Alternatively, with the Supabase CLI: `npx supabase link --project-ref <ref>` then
 > `npx supabase db push`.

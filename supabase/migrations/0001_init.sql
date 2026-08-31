@@ -147,10 +147,12 @@ alter table public.match_players    enable row level security;
 alter table public.match_jumps      enable row level security;
 
 -- allowed_emails: readable by members (so the app can show the roster); no client writes.
+drop policy if exists "allowed_emails read" on public.allowed_emails;
 create policy "allowed_emails read" on public.allowed_emails
   for select to authenticated using (public.is_member());
 
 -- Helper: apply the same member policy to a data table for all commands.
+-- (drop-then-create so this migration is safe to re-run.)
 do $$
 declare t text;
 begin
@@ -158,9 +160,13 @@ begin
     'players','locations','location_feedback','matches','match_players','match_jumps'
   ]
   loop
+    execute format('drop policy if exists %I on public.%I;', t||'_sel', t);
     execute format('create policy %I on public.%I for select to authenticated using (public.is_member());', t||'_sel', t);
+    execute format('drop policy if exists %I on public.%I;', t||'_ins', t);
     execute format('create policy %I on public.%I for insert to authenticated with check (public.is_member());', t||'_ins', t);
+    execute format('drop policy if exists %I on public.%I;', t||'_upd', t);
     execute format('create policy %I on public.%I for update to authenticated using (public.is_member()) with check (public.is_member());', t||'_upd', t);
+    execute format('drop policy if exists %I on public.%I;', t||'_del', t);
     execute format('create policy %I on public.%I for delete to authenticated using (public.is_member());', t||'_del', t);
   end loop;
 end $$;
@@ -254,17 +260,7 @@ from public.matches m
 group by m.season;
 
 -- ============================================================================
--- Storage: screenshots bucket (public read, member write) for OCR-later flow
+-- Storage (screenshots bucket) lives in 0003_storage.sql — run it AFTER Storage
+-- is provisioned on the project (open the Storage tab once, or create the bucket
+-- in the UI). It's optional and only powers the OCR-later screenshot upload.
 -- ============================================================================
-insert into storage.buckets (id, name, public)
-values ('screenshots', 'screenshots', true)
-on conflict (id) do nothing;
-
-create policy "screenshots public read" on storage.objects
-  for select using (bucket_id = 'screenshots');
-create policy "screenshots member insert" on storage.objects
-  for insert to authenticated with check (bucket_id = 'screenshots' and public.is_member());
-create policy "screenshots member update" on storage.objects
-  for update to authenticated using (bucket_id = 'screenshots' and public.is_member());
-create policy "screenshots member delete" on storage.objects
-  for delete to authenticated using (bucket_id = 'screenshots' and public.is_member());
