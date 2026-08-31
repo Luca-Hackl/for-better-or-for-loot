@@ -23,9 +23,11 @@ Both have free tiers that comfortably cover two players. You keep control of all
    - This creates all tables, row-level security, the stats views, and seeds the
      Fort Lyndon drop zones + two placeholder players. (Both scripts are idempotent —
      safe to re-run.)
-4. *(Optional — for the screenshot/OCR feature)* First open the **Storage** tab once so
-   Storage gets provisioned, then run `supabase/migrations/0003_storage.sql` to create the
-   `screenshots` bucket. You can skip this; screenshot upload just stays unavailable.
+4. *(Optional — for screenshots + the uploadable map background)* First open the **Storage**
+   tab once so Storage gets provisioned, then run `supabase/migrations/0003_storage.sql` (creates
+   the `screenshots` bucket) and `supabase/migrations/0004_app_settings.sql` (a small settings
+   table that remembers your uploaded map image). You can skip these; screenshot upload and the
+   custom map background just stay unavailable, and the stylized map is used instead.
 
 > Alternatively, with the Supabase CLI: `npx supabase link --project-ref <ref>` then
 > `npx supabase db push`.

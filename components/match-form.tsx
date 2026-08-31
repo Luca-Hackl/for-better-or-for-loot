@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createMatch, type MatchInput } from "@/lib/actions";
-import type { LocationRow, Player } from "@/lib/types";
+import type { LocationRow, Player, MapImage } from "@/lib/types";
 import { TIERS, TIER_MAP, ROMAN } from "@/lib/ranks";
 import { TacticalMap } from "@/components/tactical-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,11 +68,13 @@ export function MatchForm({
   locations,
   seasons,
   defaultSeason,
+  mapImage,
 }: {
   players: Player[];
   locations: LocationRow[];
   seasons: string[];
   defaultSeason: string;
+  mapImage?: MapImage | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -134,6 +136,10 @@ export function MatchForm({
   }
 
   const activeJumpObj = jumps.find((j) => j.key === activeJump) ?? jumps[0];
+  const activeIdx = jumps.findIndex((j) => j.key === activeJump);
+  const activeKindLabel =
+    JUMP_KINDS.find((k) => k.value === activeJumpObj?.kind)?.label ?? "drop";
+  const mapLabel = `Placing: Step ${(activeIdx < 0 ? 0 : activeIdx) + 1} — ${activeKindLabel}`;
   function pickLocation(locationId: string) {
     setJumps((prev) =>
       prev.map((j) => (j.key === activeJump ? { ...j, location_id: locationId } : j)),
@@ -442,6 +448,9 @@ export function MatchForm({
             mode="select"
             selectedId={activeJumpObj?.location_id || null}
             onSelect={pickLocation}
+            label={mapLabel}
+            backgroundUrl={mapImage?.url ?? null}
+            aspectRatio={mapImage ? mapImage.width / mapImage.height : undefined}
           />
 
           <div className="flex flex-col gap-2">
@@ -462,6 +471,7 @@ export function MatchForm({
                     </span>
                     <Select
                       value={j.kind}
+                      onClick={(e) => e.stopPropagation()}
                       onChange={(e) => setJumpKind(j.key, e.target.value as JumpState["kind"])}
                       className="h-8 w-40"
                     >

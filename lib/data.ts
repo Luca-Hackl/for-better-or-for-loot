@@ -11,6 +11,7 @@ import type {
   MatchPlayer,
   MatchJump,
   LocationFeedback,
+  MapImage,
 } from "@/lib/types";
 
 export type MatchWithDetails = MatchRow & {
@@ -141,4 +142,17 @@ export async function getLocationFeedback(
     .eq("location_id", locationId)
     .order("created_at", { ascending: false });
   return (data as unknown as (LocationFeedback & { players: Player | null })[]) ?? [];
+}
+
+/** The single shared uploaded map image (or null if none set). */
+export async function getMapImage(): Promise<MapImage | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "map_image")
+    .maybeSingle();
+  const v = (data?.value ?? null) as MapImage | null;
+  if (v && typeof v.url === "string" && v.width > 0 && v.height > 0) return v;
+  return null;
 }

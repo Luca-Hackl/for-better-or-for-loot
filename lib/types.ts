@@ -136,6 +136,19 @@ export type SeasonSummary = {
   best_placement: number | null;
 };
 
+/** app_settings KV row + the shape stored under key 'map_image'. */
+export type AppSettingRow = {
+  key: string;
+  value: unknown;
+  updated_at: string;
+};
+
+export type MapImage = {
+  url: string;
+  width: number;
+  height: number;
+};
+
 type Tbl<Row> = {
   Row: Row;
   Insert: Partial<Row>;
@@ -163,6 +176,7 @@ export type Database = {
       match_players: Tbl<MatchPlayer>;
       match_jumps: Tbl<MatchJump>;
       allowed_emails: Tbl<{ email: string }>;
+      app_settings: Tbl<AppSettingRow>;
     };
     Views: {
       location_stats: ViewT<LocationStat>;

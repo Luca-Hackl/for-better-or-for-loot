@@ -3,13 +3,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TacticalMap } from "@/components/tactical-map";
+import { MapUploader } from "@/components/map-uploader";
 import { updateLocationPosition } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
-import type { LocationRow } from "@/lib/types";
+import type { LocationRow, MapImage } from "@/lib/types";
 import { Move, Check } from "lucide-react";
 
-/** Locations map: tap a pin to open its intel, or "Arrange pins" to drag them. */
-export function LocationsMap({ locations }: { locations: LocationRow[] }) {
+/** Locations map: tap a pin to open its intel, or "Arrange pins" to drag them
+ *  and upload a real map background. */
+export function LocationsMap({
+  locations,
+  mapImage,
+}: {
+  locations: LocationRow[];
+  mapImage: MapImage | null;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [, start] = useTransition();
@@ -34,6 +42,8 @@ export function LocationsMap({ locations }: { locations: LocationRow[] }) {
         </Button>
       </div>
 
+      {editing ? <MapUploader hasMap={!!mapImage} /> : null}
+
       <TacticalMap
         locations={locations}
         mode={editing ? "edit" : "select"}
@@ -44,6 +54,8 @@ export function LocationsMap({ locations }: { locations: LocationRow[] }) {
             router.refresh();
           })
         }
+        backgroundUrl={mapImage?.url ?? null}
+        aspectRatio={mapImage ? mapImage.width / mapImage.height : undefined}
       />
 
       <div className="flex items-center gap-4 text-[11px] text-muted">

@@ -265,6 +265,36 @@ export async function updateLocationPosition(input: z.input<typeof posSchema>) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Map image (shared)                                                         */
+/* -------------------------------------------------------------------------- */
+
+const mapImageSchema = z.object({
+  url: z.string().url(),
+  width: z.coerce.number().int().positive(),
+  height: z.coerce.number().int().positive(),
+});
+
+export async function setMapImage(input: z.input<typeof mapImageSchema>) {
+  const parsed = mapImageSchema.parse(input);
+  const supabase = await createClient();
+  const { error } = await supabase.from("app_settings").upsert(
+    { key: "map_image", value: parsed, updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/locations");
+  revalidatePath("/matches/new");
+}
+
+export async function clearMapImage() {
+  const supabase = await createClient();
+  const { error } = await supabase.from("app_settings").delete().eq("key", "map_image");
+  if (error) throw new Error(error.message);
+  revalidatePath("/locations");
+  revalidatePath("/matches/new");
+}
+
+/* -------------------------------------------------------------------------- */
 /* Locations & feedback                                                       */
 /* -------------------------------------------------------------------------- */
 
@@ -283,10 +313,8 @@ export async function createLocation(input: z.input<typeof locationSchema>) {
       name: parsed.name,
       description: parsed.description ?? null,
       is_hot_drop: parsed.is_hot_drop,
-      // drop new pins near the center so they appear on the map immediately;
-      // they can be dragged into place from the Locations map editor.
-      pos_x: 0.5,
-      pos_y: 0.5,
+      // Leave pos_x/pos_y NULL so the map lays new pins out on a non-overlapping
+      // grid (a fixed default would stack every new pin on the same spot).
     })
     .select("id")
     .single();

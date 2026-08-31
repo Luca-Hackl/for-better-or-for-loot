@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getLocations, getLocationStats } from "@/lib/data";
+import { getLocations, getLocationStats, getMapImage } from "@/lib/data";
 import type { LocationStat } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,11 @@ import { MapPin, Flame, ChevronRight } from "lucide-react";
 export const metadata = { title: "Drop Zones — RedSec Ranked" };
 
 export default async function LocationsPage() {
-  const [locations, stats] = await Promise.all([getLocations(), getLocationStats()]);
+  const [locations, stats, mapImage] = await Promise.all([
+    getLocations(),
+    getLocationStats(),
+    getMapImage(),
+  ]);
   const statsById = new Map<string, LocationStat>(stats.map((s) => [s.location_id, s]));
 
   // Best drop = most wins-weighted; played spots first, sorted by win rate then avg RP.
@@ -40,7 +44,7 @@ export default async function LocationsPage() {
           <CardTitle>Tactical map</CardTitle>
         </CardHeader>
         <CardContent>
-          <LocationsMap locations={locations} />
+          <LocationsMap locations={locations} mapImage={mapImage} />
         </CardContent>
       </Card>
 
