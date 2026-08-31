@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Input, Label, Select } from "@/components/ui/input";
-import { TIERS, TIER_MAP, ROMAN } from "@/lib/ranks";
-import { fmtDelta } from "@/lib/utils";
+import { Input, Label } from "@/components/ui/input";
+import { getRankByRp, formatRank, TIERS } from "@/lib/ranks";
+import { RankBadge } from "@/components/rank-badge";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 export interface RpValue {
   rp_before: number | null;
@@ -11,6 +12,7 @@ export interface RpValue {
   rp_after: number | null;
   rank_tier: string | null;
   rank_division: number | null;
+  direction: "up" | "down" | "same" | null;
 }
 
 const num = (s: string): number | null => {
@@ -19,9 +21,13 @@ const num = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const ordinal = (tierKey: string, division: number | null) =>
+  TIERS.findIndex((t) => t.key === tierKey) * 10 + (division ?? 1);
+
 /**
- * RP entry for the current player, with two-way auto-calc between
- * before / gained(±) / now. Prefills "before" from the player's latest RP.
+ * RP entry: you only know your RP NOW and how much you gained/lost. Tier +
+ * division are auto-derived from RP now, and rank up/down is detected vs your
+ * previous RP. Entering one of now/gained fills the other from your latest RP.
  */
 export function RpFields({
   latestRp,
@@ -32,122 +38,89 @@ export function RpFields({
   initial?: Partial<RpValue>;
   onChange: (v: RpValue) => void;
 }) {
-  const [before, setBefore] = useState(
-    initial?.rp_before != null ? String(initial.rp_before) : latestRp != null ? String(latestRp) : "",
-  );
-  const [gain, setGain] = useState(initial?.rp_delta != null ? String(initial.rp_delta) : "");
   const [now, setNow] = useState(initial?.rp_after != null ? String(initial.rp_after) : "");
-  const [tier, setTier] = useState(initial?.rank_tier ?? "");
-  const [division, setDivision] = useState(initial?.rank_division != null ? String(initial.rank_division) : "");
+  const [gain, setGain] = useState(initial?.rp_delta != null ? String(initial.rp_delta) : "");
 
-  // two-way calc
-  function editBefore(v: string) {
-    setBefore(v);
-    const b = num(v);
-    const g = num(gain);
-    const n = num(now);
-    if (b != null && g != null) setNow(String(b + g));
-    else if (b != null && n != null) setGain(String(n - b));
+  function editNow(v: string) {
+    setNow(v);
+    const n = num(v);
+    if (gain.trim() === "" && n != null && latestRp != null) setGain(String(n - latestRp));
   }
   function editGain(v: string) {
     setGain(v);
-    const b = num(before);
     const g = num(v);
-    if (b != null && g != null) setNow(String(b + g));
+    if (now.trim() === "" && g != null && latestRp != null) setNow(String(latestRp + g));
   }
-  function editNow(v: string) {
-    setNow(v);
-    const b = num(before);
-    const n = num(v);
-    if (b != null && n != null) setGain(String(n - b));
-  }
+
+  const nowN = num(now);
+  const gainN = num(gain);
+  const rank = nowN != null ? getRankByRp(nowN) : null;
+  const prevRank = latestRp != null ? getRankByRp(latestRp) : null;
+
+  const direction: RpValue["direction"] = useMemo(() => {
+    if (!rank || !prevRank) return null;
+    const a = ordinal(rank.tier.key, rank.division);
+    const b = ordinal(prevRank.tier.key, prevRank.division);
+    return a > b ? "up" : a < b ? "down" : "same";
+  }, [rank, prevRank]);
 
   const value = useMemo<RpValue>(
     () => ({
-      rp_before: num(before),
-      rp_delta: num(gain),
-      rp_after: num(now),
-      rank_tier: tier || null,
-      rank_division: num(division),
+      rp_after: nowN,
+      rp_delta: gainN,
+      rp_before: nowN != null && gainN != null ? nowN - gainN : null,
+      rank_tier: rank?.tier.key ?? null,
+      rank_division: rank?.division ?? null,
+      direction,
     }),
-    [before, gain, now, tier, division],
+    [nowN, gainN, rank, direction],
   );
 
   useEffect(() => {
     onChange(value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value.rp_before, value.rp_delta, value.rp_after, value.rank_tier, value.rank_division]);
-
-  const g = num(gain);
+  }, [value.rp_after, value.rp_delta, value.rank_tier, value.rank_division, value.direction]);
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <Field label="RP before">
-        <Input
-          type="number"
-          value={before}
-          onChange={(e) => editBefore(e.target.value)}
-          placeholder={latestRp != null ? String(latestRp) : "e.g. 4596"}
-        />
-      </Field>
-      <Field label="Gained / lost">
-        <Input
-          type="number"
-          value={gain}
-          onChange={(e) => editGain(e.target.value)}
-          placeholder="+4 / -30"
-          className={g != null ? (g > 0 ? "text-win" : g < 0 ? "text-loss" : "") : ""}
-        />
-      </Field>
-      <Field label="RP now">
-        <Input
-          type="number"
-          value={now}
-          onChange={(e) => editNow(e.target.value)}
-          placeholder="e.g. 4600"
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Tier">
-          <Select value={tier} onChange={(e) => setTier(e.target.value)}>
-            <option value="">—</option>
-            {TIERS.map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Div">
-          <Select
-            value={division}
-            onChange={(e) => setDivision(e.target.value)}
-            disabled={!tier || (TIER_MAP[tier as keyof typeof TIER_MAP]?.divisions ?? 1) <= 1}
-          >
-            <option value="">—</option>
-            {ROMAN.slice(1).map((r, i) => (
-              <option key={r} value={i + 1}>
-                {r}
-              </option>
-            ))}
-          </Select>
-        </Field>
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label>RP now</Label>
+          <Input type="number" value={now} onChange={(e) => editNow(e.target.value)} placeholder="e.g. 4600" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Gained / lost</Label>
+          <Input
+            type="number"
+            value={gain}
+            onChange={(e) => editGain(e.target.value)}
+            placeholder="+4 / -30"
+            className={gainN != null ? (gainN > 0 ? "text-win" : gainN < 0 ? "text-loss" : "") : ""}
+          />
+        </div>
       </div>
-      {value.rp_delta != null ? (
-        <p className="col-span-full text-[11px] text-muted">
-          Net this round: <span className={value.rp_delta >= 0 ? "text-win" : "text-loss"}>{fmtDelta(value.rp_delta)} RP</span>
-          {value.rp_after != null ? ` · now at ${value.rp_after}` : ""}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label>{label}</Label>
-      {children}
+      {rank ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">Rank:</span>
+          <RankBadge tier={rank.tier.key} division={rank.division} size="sm" />
+          {direction === "up" ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-win/40 bg-win/15 px-2 py-0.5 text-xs font-bold text-win">
+              <TrendingUp className="h-3 w-3" /> Rank up
+            </span>
+          ) : direction === "down" ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-loss/40 bg-loss/15 px-2 py-0.5 text-xs font-bold text-loss">
+              <TrendingDown className="h-3 w-3" /> Rank down
+            </span>
+          ) : direction === "same" ? (
+            <span className="inline-flex items-center gap-1 text-xs text-muted">
+              <Minus className="h-3 w-3" /> holding {formatRank(rank.tier.key, rank.division)}
+            </span>
+          ) : null}
+          <span className="text-[11px] text-muted-foreground">(auto from RP)</span>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">Enter RP now — tier &amp; division are derived automatically.</p>
+      )}
     </div>
   );
 }

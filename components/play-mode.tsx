@@ -9,7 +9,6 @@ import { TacticalMap } from "@/components/tactical-map";
 import { RpFields, type RpValue } from "@/components/rp-fields";
 import { NumStepper } from "@/components/num-stepper";
 import { Celebration, type CelebrationData } from "@/components/celebration";
-import { getRankByRp, TIERS } from "@/lib/ranks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -32,7 +31,11 @@ import {
   Timer,
   Skull,
   Square,
+  Crosshair,
+  ScrollText,
 } from "lucide-react";
+
+type GameEvent = { id: string; kind: "start" | "kill" | "death" | "respawn" | "stop"; t: number };
 
 type LineState = {
   kills: string;
@@ -111,6 +114,7 @@ export function PlayMode({
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [stoppedAt, setStoppedAt] = useState<number | null>(null);
   const [deathTimes, setDeathTimes] = useState<number[]>([]);
+  const [events, setEvents] = useState<GameEvent[]>([]);
   const [tick, setTick] = useState(0);
 
   const [restored, setRestored] = useState(false);
@@ -162,6 +166,7 @@ export function PlayMode({
       setStartedAt(d.startedAt ?? null);
       setStoppedAt(d.stoppedAt ?? null);
       setDeathTimes(Array.isArray(d.deathTimes) ? d.deathTimes : []);
+      setEvents(Array.isArray(d.events) ? d.events : []);
       setRestored(true);
     } catch {
       /* ignore */
@@ -173,12 +178,12 @@ export function PlayMode({
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ mode, season, squad, stats, jumps, placement, totalSquads, myRp, notes, startedAt, stoppedAt, deathTimes }),
+        JSON.stringify({ mode, season, squad, stats, jumps, placement, totalSquads, myRp, notes, startedAt, stoppedAt, deathTimes, events }),
       );
     } catch {
       /* ignore */
     }
-  }, [mode, season, squad, stats, jumps, placement, totalSquads, myRp, notes, startedAt, stoppedAt, deathTimes]);
+  }, [mode, season, squad, stats, jumps, placement, totalSquads, myRp, notes, startedAt, stoppedAt, deathTimes, events]);
 
   useEffect(() => {
     if (!running) return;
@@ -209,6 +214,7 @@ export function PlayMode({
     setStartedAt(null);
     setStoppedAt(null);
     setDeathTimes([]);
+    setEvents([]);
     setRestored(false);
     setStep(0);
   }
@@ -239,12 +245,24 @@ export function PlayMode({
     setStartedAt(Date.now());
     setStoppedAt(null);
     setDeathTimes([]);
+    setEvents([{ id: newKey(), kind: "start", t: 0 }]);
+  };
+  const logKill = () => {
+    if (startedAt == null) return;
+    if (myPlayerId) setLine(myPlayerId, { kills: String((numOrNull(stats[myPlayerId].kills) ?? 0) + 1) });
+    setEvents((e) => [...e, { id: newKey(), kind: "kill", t: elapsed }]);
   };
   const logDeath = () => {
     if (startedAt == null) return;
     setDeathTimes((d) => [...d, elapsed]);
+    setEvents((e) => [...e, { id: newKey(), kind: "death", t: elapsed }]);
+    addRespawn(); // ready a respawn to place…
+    setStep(2); // …and jump to the map to mark it
   };
-  const stopTimer = () => setStoppedAt(Date.now());
+  const stopTimer = () => {
+    setStoppedAt(Date.now());
+    setEvents((e) => [...e, { id: newKey(), kind: "stop", t: elapsed }]);
+  };
 
   const activeObj = jumps.find((j) => j.key === activeJump) ?? jumps[0];
   const jumpPoints = (list: JumpState[]) =>
@@ -325,13 +343,8 @@ export function PlayMode({
       const id = await createMatch(payload);
       localStorage.removeItem(DRAFT_KEY);
 
-      // rank-up detection vs the player's previous rank
-      let promoted = false;
-      if (isRanked && myRp?.rank_tier && latestRp != null) {
-        const prevIdx = TIERS.findIndex((t) => t.key === getRankByRp(latestRp).tier.key);
-        const newIdx = TIERS.findIndex((t) => t.key === myRp.rank_tier);
-        promoted = newIdx > prevIdx;
-      }
+      // rank-up detection comes from the auto-derived RP direction
+      const promoted = !!(isRanked && myRp?.direction === "up");
       const myStats = myPlayerId ? stats[myPlayerId] : null;
       const place = numOrNull(placement);
       setCelebrate({
@@ -385,8 +398,8 @@ export function PlayMode({
 
       {/* Live timer */}
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-center gap-3 py-3">
-          <span className="flex items-center gap-2 text-sm font-semibold">
+        <CardContent className="flex flex-wrap items-center gap-2 py-3">
+          <span className="mr-1 flex items-center gap-2 text-sm font-semibold">
             <Timer className={cn("h-4 w-4", running ? "text-win" : "text-muted")} />
             <span className="tnum text-lg">{mmss(elapsed)}</span>
           </span>
@@ -396,25 +409,53 @@ export function PlayMode({
             </Button>
           ) : (
             <>
+              {myPlayerId ? (
+                <Button size="sm" variant="outline" onClick={logKill} disabled={!running} className="border-win/50 text-win hover:bg-win/15">
+                  <Crosshair className="h-4 w-4" /> Kill +1
+                </Button>
+              ) : null}
               <Button size="sm" variant="danger" onClick={logDeath} disabled={!running}>
                 <Skull className="h-4 w-4" /> I died
               </Button>
               {running ? (
-                <Button size="sm" variant="outline" onClick={stopTimer}>
+                <Button size="sm" variant="ghost" onClick={stopTimer}>
                   <Square className="h-4 w-4" /> Stop
                 </Button>
               ) : null}
             </>
           )}
-          {deathTimes.length > 0 ? (
-            <span className="text-xs text-muted">
-              Deaths: {deathTimes.map((t) => mmss(t)).join(", ")}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">Press start when you jump in.</span>
-          )}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {startedAt == null ? "Press start when you jump in." : `${deathTimes.length} death(s)`}
+          </span>
         </CardContent>
       </Card>
+
+      {/* Live game-log */}
+      {events.length > 0 ? (
+        <Card className="mb-4">
+          <CardContent className="py-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
+              <ScrollText className="h-3.5 w-3.5" /> Game log
+            </div>
+            <ul className="flex max-h-44 flex-col gap-1 overflow-auto">
+              {[...events].reverse().map((ev) => (
+                <li key={ev.id} className="flex items-center gap-2 text-sm">
+                  <span className="tnum w-10 shrink-0 text-muted-foreground">{mmss(ev.t)}</span>
+                  {ev.kind === "kill" ? (
+                    <span className="flex items-center gap-1.5 text-win"><Crosshair className="h-3.5 w-3.5" /> You got a kill</span>
+                  ) : ev.kind === "death" ? (
+                    <span className="flex items-center gap-1.5 text-loss"><Skull className="h-3.5 w-3.5" /> You went down</span>
+                  ) : ev.kind === "stop" ? (
+                    <span className="flex items-center gap-1.5 text-muted"><Square className="h-3.5 w-3.5" /> Match ended</span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-accent"><Play className="h-3.5 w-3.5" /> Dropped in</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {restored ? (
         <p className="mb-3 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs text-accent">
