@@ -65,9 +65,11 @@ export async function fetchCareer(
     const data: unknown = await res.json();
     const obj = (data ?? {}) as Record<string, unknown>;
 
-    // The BF6 payload exposes a top-level `redsec` array of per-mode aggregates.
-    const redsec = Array.isArray(obj.redsec) ? (obj.redsec as Record<string, unknown>[]) : [];
-    if (redsec.length === 0) {
+    // The live BF6 payload exposes `redsec` as an array of SEASONS, each with a
+    // nested `modes` array (Duos / Quads / Gauntlet). Sum across all seasons and
+    // modes for lifetime totals; aggregate per mode by name.
+    const seasons = Array.isArray(obj.redsec) ? (obj.redsec as Record<string, unknown>[]) : [];
+    if (seasons.length === 0) {
       return { ...base, error: "No RedSec stats found for this profile" };
     }
 
@@ -76,24 +78,33 @@ export async function fetchCareer(
       kills = 0,
       deaths = 0,
       extractions = 0;
-    const perMode: CareerStats["perMode"] = [];
+    const byMode = new Map<string, { matches: number; wins: number; kills: number }>();
 
-    for (const m of redsec) {
-      const mMatches = n(m.matches ?? m.matchesPlayed);
-      const mWins = n(m.wins);
-      const mKills = n(m.kills);
-      matches += mMatches;
-      wins += mWins;
-      kills += mKills;
-      deaths += n(m.deaths);
-      extractions += n(m.extractions);
-      perMode.push({
-        mode: String(m.mode ?? m.name ?? "RedSec"),
-        matches: mMatches,
-        wins: mWins,
-        kills: mKills,
-      });
+    for (const s of seasons) {
+      const modes = Array.isArray(s.modes) ? (s.modes as Record<string, unknown>[]) : [];
+      for (const m of modes) {
+        const mMatches = n(m.matches);
+        const mWins = n(m.wins);
+        const mKills = n(m.kills);
+        matches += mMatches;
+        wins += mWins;
+        kills += mKills;
+        deaths += n(m.deaths);
+        extractions += n(m.extractions);
+        const name = String(m.mode ?? m.modeId ?? "RedSec");
+        const cur = byMode.get(name) ?? { matches: 0, wins: 0, kills: 0 };
+        cur.matches += mMatches;
+        cur.wins += mWins;
+        cur.kills += mKills;
+        byMode.set(name, cur);
+      }
     }
+
+    if (matches === 0 && kills === 0) {
+      return { ...base, error: "No RedSec matches on record" };
+    }
+
+    const perMode = Array.from(byMode.entries()).map(([mode, v]) => ({ mode, ...v }));
 
     return {
       ...base,
