@@ -74,12 +74,21 @@ export type MatchPlayer = {
   revives: number | null;
   damage: number | null;
   was_mvp: boolean;
+  rp_before: number | null;
+  rp_after: number | null;
+  rp_delta: number | null;
+  rank_tier: string | null;
+  rank_division: number | null;
+  death_times: number[];
+  time_seconds: number | null;
 };
 
 export type MatchJump = {
   id: string;
   match_id: string;
-  location_id: string;
+  location_id: string | null;
+  pos_x: number | null;
+  pos_y: number | null;
   jump_order: number;
   kind: JumpKind;
   player_id: string | null;
@@ -116,6 +125,7 @@ export type PlayerStat = {
 };
 
 export type RpTimelinePoint = {
+  player_id: string;
   match_id: string;
   played_at: string;
   season: string | null;

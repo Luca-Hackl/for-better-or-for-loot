@@ -24,6 +24,7 @@ export function TacticalMap({
   onSelect,
   onReposition,
   onCreateAt,
+  points,
   backgroundUrl,
   aspectRatio,
   label,
@@ -35,6 +36,7 @@ export function TacticalMap({
   onSelect?: (id: string) => void;
   onReposition?: (id: string, x: number, y: number) => void;
   onCreateAt?: (x: number, y: number) => void;
+  points?: { id: string; x: number; y: number; color?: string; selected?: boolean; label?: string }[];
   backgroundUrl?: string | null;
   aspectRatio?: number | null;
   label?: string | null;
@@ -214,6 +216,28 @@ export function TacticalMap({
           </button>
         );
       })}
+
+      {(points ?? []).map((pt) => (
+        <span
+          key={pt.id}
+          className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
+          style={{ left: `${pt.x * 100}%`, top: `${pt.y * 100}%` }}
+        >
+          <span
+            className="flex items-center justify-center rounded-full ring-1 ring-white/70"
+            style={{
+              width: pt.selected ? 20 : 14,
+              height: pt.selected ? 20 : 14,
+              backgroundColor: pt.color ?? "#ff3b4e",
+              boxShadow: `0 0 ${pt.selected ? 14 : 7}px ${pt.color ?? "#ff3b4e"}`,
+            }}
+          >
+            {pt.label ? (
+              <span className="text-[9px] font-bold text-white">{pt.label}</span>
+            ) : null}
+          </span>
+        </span>
+      ))}
     </div>
   );
 }

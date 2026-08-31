@@ -29,10 +29,19 @@ const playerLineSchema = z.object({
   revives: z.coerce.number().int().min(0).nullable().optional(),
   damage: z.coerce.number().int().min(0).nullable().optional(),
   was_mvp: z.boolean().default(false),
+  rp_before: z.coerce.number().int().nullable().optional(),
+  rp_after: z.coerce.number().int().nullable().optional(),
+  rp_delta: z.coerce.number().int().nullable().optional(),
+  rank_tier: z.string().nullable().optional(),
+  rank_division: z.coerce.number().int().min(1).max(5).nullable().optional(),
+  death_times: z.array(z.coerce.number().int().min(0)).optional(),
+  time_seconds: z.coerce.number().int().min(0).nullable().optional(),
 });
 
 const jumpSchema = z.object({
-  location_id: z.string().uuid(),
+  location_id: z.string().uuid().nullable().optional(),
+  pos_x: z.number().min(0).max(1).nullable().optional(),
+  pos_y: z.number().min(0).max(1).nullable().optional(),
   jump_order: z.coerce.number().int().min(1).default(1),
   kind: z.enum(["initial_drop", "second_chance", "respawn"]).default("initial_drop"),
   player_id: z.string().uuid().nullable().optional(),
@@ -47,11 +56,6 @@ const matchSchema = z.object({
   map: z.string().default("Fort Lyndon"),
   placement: z.coerce.number().int().min(1).nullable().optional(),
   total_squads: z.coerce.number().int().min(1).nullable().optional(),
-  rp_start: z.coerce.number().int().nullable().optional(),
-  rp_end: z.coerce.number().int().nullable().optional(),
-  rp_delta: z.coerce.number().int().nullable().optional(),
-  rank_tier: z.string().nullable().optional(),
-  rank_division: z.coerce.number().int().min(1).max(5).nullable().optional(),
   screenshot_url: z.string().nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
   players: z.array(playerLineSchema).min(1),
@@ -78,12 +82,6 @@ export async function createMatch(input: MatchInput) {
     createdBy = me?.id ?? null;
   }
 
-  // Derive rp_delta if omitted but start/end known.
-  let rpDelta = parsed.rp_delta ?? null;
-  if (rpDelta == null && parsed.rp_start != null && parsed.rp_end != null) {
-    rpDelta = parsed.rp_end - parsed.rp_start;
-  }
-
   const { data: match, error } = await supabase
     .from("matches")
     .insert({
@@ -94,11 +92,6 @@ export async function createMatch(input: MatchInput) {
       map: parsed.map,
       placement: parsed.placement ?? null,
       total_squads: parsed.total_squads ?? null,
-      rp_start: parsed.rp_start ?? null,
-      rp_end: parsed.rp_end ?? null,
-      rp_delta: rpDelta,
-      rank_tier: parsed.rank_tier ?? null,
-      rank_division: parsed.rank_division ?? null,
       screenshot_url: parsed.screenshot_url ?? null,
       ocr_source: "manual",
       notes: parsed.notes ?? null,
@@ -127,16 +120,28 @@ export async function createMatch(input: MatchInput) {
 
   const playerRows = parsed.players
     .filter((p) => writable.has(p.player_id))
-    .map((p) => ({
-      match_id: matchId,
-      player_id: p.player_id,
-      kills: p.kills,
-      assists: p.assists,
-      deaths: p.deaths,
-      revives: p.revives ?? null,
-      damage: p.damage ?? null,
-      was_mvp: p.was_mvp,
-    }));
+    .map((p) => {
+      const rpDelta =
+        p.rp_delta ??
+        (p.rp_before != null && p.rp_after != null ? p.rp_after - p.rp_before : null);
+      return {
+        match_id: matchId,
+        player_id: p.player_id,
+        kills: p.kills,
+        assists: p.assists,
+        deaths: p.deaths,
+        revives: p.revives ?? null,
+        damage: p.damage ?? null,
+        was_mvp: p.was_mvp,
+        rp_before: p.rp_before ?? null,
+        rp_after: p.rp_after ?? null,
+        rp_delta: rpDelta,
+        rank_tier: p.rank_tier ?? null,
+        rank_division: p.rank_division ?? null,
+        death_times: p.death_times ?? [],
+        time_seconds: p.time_seconds ?? null,
+      };
+    });
   if (playerRows.length > 0) {
     const { error: mpErr } = await supabase.from("match_players").insert(playerRows);
     if (mpErr) throw new Error(mpErr.message);
@@ -145,7 +150,9 @@ export async function createMatch(input: MatchInput) {
   if (parsed.jumps.length > 0) {
     const jumpRows = parsed.jumps.map((j) => ({
       match_id: matchId,
-      location_id: j.location_id,
+      location_id: j.location_id ?? null,
+      pos_x: j.pos_x ?? null,
+      pos_y: j.pos_y ?? null,
       jump_order: j.jump_order,
       kind: j.kind,
       player_id: j.player_id ?? null,
@@ -180,6 +187,11 @@ const myStatsSchema = z.object({
   revives: z.coerce.number().int().min(0).nullable().optional(),
   damage: z.coerce.number().int().min(0).nullable().optional(),
   was_mvp: z.boolean().default(false),
+  rp_before: z.coerce.number().int().nullable().optional(),
+  rp_after: z.coerce.number().int().nullable().optional(),
+  rp_delta: z.coerce.number().int().nullable().optional(),
+  rank_tier: z.string().nullable().optional(),
+  rank_division: z.coerce.number().int().min(1).max(5).nullable().optional(),
 });
 
 /** Add or update the signed-in user's OWN stat line for a match. RLS ensures a
@@ -198,6 +210,12 @@ export async function upsertMyStats(input: z.input<typeof myStatsSchema>) {
     .maybeSingle();
   if (!me) throw new Error("Claim your player in Settings first, then you can enter your stats.");
 
+  const rpDelta =
+    parsed.rp_delta ??
+    (parsed.rp_before != null && parsed.rp_after != null
+      ? parsed.rp_after - parsed.rp_before
+      : null);
+
   const { error } = await supabase.from("match_players").upsert(
     {
       match_id: parsed.match_id,
@@ -208,6 +226,11 @@ export async function upsertMyStats(input: z.input<typeof myStatsSchema>) {
       revives: parsed.revives ?? null,
       damage: parsed.damage ?? null,
       was_mvp: parsed.was_mvp,
+      rp_before: parsed.rp_before ?? null,
+      rp_after: parsed.rp_after ?? null,
+      rp_delta: rpDelta,
+      rank_tier: parsed.rank_tier ?? null,
+      rank_division: parsed.rank_division ?? null,
     },
     { onConflict: "match_id,player_id" },
   );

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { upsertMyStats } from "@/lib/actions";
 import type { MatchPlayer, Player } from "@/lib/types";
+import { RpFields, type RpValue } from "@/components/rp-fields";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -21,10 +22,14 @@ export function MyStatsPanel({
   matchId,
   me,
   existing,
+  isRanked,
+  latestRp,
 }: {
   matchId: string;
   me: Player;
   existing: MatchPlayer | null;
+  isRanked: boolean;
+  latestRp: number | null;
 }) {
   const router = useRouter();
   const [kills, setKills] = useState(existing ? String(existing.kills) : "");
@@ -33,6 +38,7 @@ export function MyStatsPanel({
   const [revives, setRevives] = useState(existing?.revives != null ? String(existing.revives) : "");
   const [damage, setDamage] = useState(existing?.damage != null ? String(existing.damage) : "");
   const [mvp, setMvp] = useState(existing?.was_mvp ?? false);
+  const [rp, setRp] = useState<RpValue | null>(null);
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +63,28 @@ export function MyStatsPanel({
           <Num label="Revives" value={revives} onChange={setRevives} />
           <Num label="Damage" value={damage} onChange={setDamage} />
         </div>
+        {isRanked ? (
+          <div>
+            <Label>Your RP</Label>
+            <div className="mt-2">
+              <RpFields
+                latestRp={latestRp}
+                initial={
+                  existing
+                    ? {
+                        rp_before: existing.rp_before,
+                        rp_delta: existing.rp_delta,
+                        rp_after: existing.rp_after,
+                        rank_tier: existing.rank_tier,
+                        rank_division: existing.rank_division,
+                      }
+                    : undefined
+                }
+                onChange={setRp}
+              />
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -84,6 +112,11 @@ export function MyStatsPanel({
                     revives: numOrNull(revives),
                     damage: numOrNull(damage),
                     was_mvp: mvp,
+                    rp_before: isRanked ? rp?.rp_before ?? null : null,
+                    rp_after: isRanked ? rp?.rp_after ?? null : null,
+                    rp_delta: isRanked ? rp?.rp_delta ?? null : null,
+                    rank_tier: isRanked ? rp?.rank_tier ?? null : null,
+                    rank_division: isRanked ? rp?.rank_division ?? null : null,
                   });
                   setSaved(true);
                   router.refresh();

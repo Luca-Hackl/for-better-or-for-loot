@@ -15,19 +15,24 @@ export interface Kpis {
   worstRp: MatchWithDetails | null;
 }
 
-/** matches expected in DESC chronological order (newest first). */
-export function computeKpis(matches: MatchWithDetails[]): Kpis {
+/** matches expected in DESC chronological order (newest first). RP is read from
+ *  the given player's own line (per-player); win/placement stay match-level. */
+export function computeKpis(matches: MatchWithDetails[], playerId?: string | null): Kpis {
   const games = matches.length;
   const wins = matches.filter((m) => m.won).length;
   const ranked = matches.filter((m) => m.is_ranked);
   const rankedGames = ranked.length;
 
-  const rpWins = ranked.filter((m) => (m.rp_delta ?? 0) > 0).map((m) => m.rp_delta as number);
-  const rpLosses = ranked.filter((m) => (m.rp_delta ?? 0) < 0).map((m) => m.rp_delta as number);
-  const rpAll = ranked.filter((m) => m.rp_delta != null).map((m) => m.rp_delta as number);
+  const myDelta = (m: MatchWithDetails): number | null => {
+    if (!playerId) return null;
+    return m.match_players.find((mp) => mp.player_id === playerId)?.rp_delta ?? null;
+  };
 
-  const avg = (arr: number[]) =>
-    arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const rpAll = ranked.map(myDelta).filter((v): v is number => v != null);
+  const rpWins = rpAll.filter((v) => v > 0);
+  const rpLosses = rpAll.filter((v) => v < 0);
+
+  const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
 
   // current streak from newest match
   let streak = 0;
@@ -44,10 +49,13 @@ export function computeKpis(matches: MatchWithDetails[]): Kpis {
 
   let bestRp: MatchWithDetails | null = null;
   let worstRp: MatchWithDetails | null = null;
+  let bestVal = -Infinity;
+  let worstVal = Infinity;
   for (const m of ranked) {
-    if (m.rp_delta == null) continue;
-    if (!bestRp || (m.rp_delta as number) > (bestRp.rp_delta as number)) bestRp = m;
-    if (!worstRp || (m.rp_delta as number) < (worstRp.rp_delta as number)) worstRp = m;
+    const d = myDelta(m);
+    if (d == null) continue;
+    if (d > bestVal) { bestVal = d; bestRp = m; }
+    if (d < worstVal) { worstVal = d; worstRp = m; }
   }
 
   return {

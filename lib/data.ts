@@ -117,13 +117,25 @@ export async function getPlayerStats(): Promise<PlayerStat[]> {
   return (data as PlayerStat[]) ?? [];
 }
 
-export async function getRpTimeline(): Promise<RpTimelinePoint[]> {
+export async function getRpTimeline(playerId?: string): Promise<RpTimelinePoint[]> {
+  const supabase = await createClient();
+  let q = supabase.from("rp_timeline").select("*").order("played_at", { ascending: true });
+  if (playerId) q = q.eq("player_id", playerId);
+  const { data } = await q;
+  return (data as RpTimelinePoint[]) ?? [];
+}
+
+/** The player's most recent running RP total (their "current RP"). */
+export async function getLatestRp(playerId: string): Promise<number | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("rp_timeline")
-    .select("*")
-    .order("played_at", { ascending: true });
-  return (data as RpTimelinePoint[]) ?? [];
+    .select("running_rp, played_at")
+    .eq("player_id", playerId)
+    .order("played_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.running_rp as number | undefined) ?? null;
 }
 
 export async function getSeasonSummary(): Promise<SeasonSummary[]> {

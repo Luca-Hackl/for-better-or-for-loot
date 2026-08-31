@@ -151,7 +151,7 @@ export default async function LocationDetailPage({
           </h2>
           <div className="flex flex-col gap-3">
             {matches.map((m) => (
-              <MatchCard key={m.id} match={m} />
+              <MatchCard key={m.id} match={m} myPlayerId={me.player?.id ?? null} />
             ))}
           </div>
         </div>

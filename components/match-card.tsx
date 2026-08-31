@@ -15,12 +15,13 @@ const MODE_LABEL: Record<string, string> = {
   gauntlet: "Gauntlet",
 };
 
-export function MatchCard({ match }: { match: MatchWithDetails }) {
+export function MatchCard({ match, myPlayerId }: { match: MatchWithDetails; myPlayerId?: string | null }) {
   const initialDrops = match.match_jumps
     .filter((j) => j.kind === "initial_drop")
     .map((j) => j.locations?.name)
     .filter(Boolean);
   const dropLabel = initialDrops[0] ?? match.match_jumps[0]?.locations?.name;
+  const myLine = myPlayerId ? match.match_players.find((mp) => mp.player_id === myPlayerId) : undefined;
 
   return (
     <Link href={`/matches/${match.id}`} className="block">
@@ -37,7 +38,7 @@ export function MatchCard({ match }: { match: MatchWithDetails }) {
               {MODE_LABEL[match.mode] ?? match.mode}
             </span>
           </div>
-          {match.is_ranked ? <RpPill delta={match.rp_delta} size="sm" /> : null}
+          {match.is_ranked && myLine?.rp_delta != null ? <RpPill delta={myLine.rp_delta} size="sm" /> : null}
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -64,8 +65,8 @@ export function MatchCard({ match }: { match: MatchWithDetails }) {
                 {match.match_jumps.length > 1 ? ` +${match.match_jumps.length - 1}` : ""}
               </span>
             ) : null}
-            {match.is_ranked && match.rank_tier ? (
-              <RankBadge tier={match.rank_tier} division={match.rank_division} size="sm" />
+            {match.is_ranked && myLine?.rank_tier ? (
+              <RankBadge tier={myLine.rank_tier} division={myLine.rank_division} size="sm" />
             ) : null}
           </span>
           <span>{format(new Date(match.played_at), "MMM d, HH:mm")}</span>

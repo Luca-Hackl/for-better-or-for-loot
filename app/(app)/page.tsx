@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { getMatches, getRpTimeline, getPlayers } from "@/lib/data";
+import { getMatches, getRpTimeline, getPlayers, getCurrentUserAndPlayer } from "@/lib/data";
 import { computeKpis } from "@/lib/stats";
 import { fmtDelta, fmtNum } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,20 +15,32 @@ import { Plus, Flame, Snowflake } from "lucide-react";
 export const metadata = { title: "Overview — RedSec Ranked" };
 
 export default async function OverviewPage() {
+  const me = await getCurrentUserAndPlayer();
+  const myId = me.player?.id ?? null;
   const [matches, timeline, players] = await Promise.all([
     getMatches({ limit: 500 }),
-    getRpTimeline(),
+    myId ? getRpTimeline(myId) : Promise.resolve([]),
     getPlayers(),
   ]);
 
-  const kpis = computeKpis(matches);
+  const kpis = computeKpis(matches, myId);
   const rpData: RpPoint[] = timeline.map((p) => ({
     t: p.played_at,
     rp: p.running_rp,
     delta: p.rp_delta,
   }));
 
-  const latestRanked = matches.find((m) => m.is_ranked && m.rank_tier);
+  // current rank = my most recent ranked line that carries a tier
+  let myRankTier: string | null = null;
+  let myRankDivision: number | null = null;
+  for (const m of matches) {
+    const line = myId ? m.match_players.find((mp) => mp.player_id === myId) : undefined;
+    if (line?.rank_tier) {
+      myRankTier = line.rank_tier;
+      myRankDivision = line.rank_division;
+      break;
+    }
+  }
   const streakPositive = kpis.currentStreak > 0;
 
   return (
@@ -40,12 +52,8 @@ export default async function OverviewPage() {
           <p className="text-sm text-muted">Your RedSec Ranked climb, at a glance.</p>
         </div>
         <div className="flex items-center gap-3">
-          {latestRanked ? (
-            <RankBadge
-              tier={latestRanked.rank_tier}
-              division={latestRanked.rank_division}
-              size="lg"
-            />
+          {myRankTier ? (
+            <RankBadge tier={myRankTier} division={myRankDivision} size="lg" />
           ) : null}
           <Link href="/matches/new">
             <Button>
@@ -139,7 +147,7 @@ export default async function OverviewPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {matches.slice(0, 5).map((m) => (
-              <MatchCard key={m.id} match={m} />
+              <MatchCard key={m.id} match={m} myPlayerId={myId} />
             ))}
           </div>
         )}

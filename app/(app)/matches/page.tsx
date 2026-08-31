@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getMatches } from "@/lib/data";
+import { getMatches, getCurrentUserAndPlayer } from "@/lib/data";
 import { MatchCard } from "@/components/match-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,13 +23,17 @@ export default async function MatchesPage({
 }) {
   const { filter = "all" } = await searchParams;
 
-  const matches = await getMatches(
-    filter === "ranked"
-      ? { rankedOnly: true }
-      : filter !== "all"
-        ? { mode: filter }
-        : {},
-  );
+  const [matches, me] = await Promise.all([
+    getMatches(
+      filter === "ranked"
+        ? { rankedOnly: true }
+        : filter !== "all"
+          ? { mode: filter }
+          : {},
+    ),
+    getCurrentUserAndPlayer(),
+  ]);
+  const myId = me.player?.id ?? null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -77,7 +81,7 @@ export default async function MatchesPage({
       ) : (
         <div className="flex flex-col gap-3">
           {matches.map((m) => (
-            <MatchCard key={m.id} match={m} />
+            <MatchCard key={m.id} match={m} myPlayerId={myId} />
           ))}
         </div>
       )}

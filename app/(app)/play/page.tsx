@@ -1,4 +1,4 @@
-import { getPlayers, getLocations, getMatches, getMapImage, getCurrentUserAndPlayer } from "@/lib/data";
+import { getPlayers, getLocations, getMatches, getMapImage, getCurrentUserAndPlayer, getLatestRp } from "@/lib/data";
 import { PlayMode } from "@/components/play-mode";
 
 export const metadata = { title: "Play mode — RedSec Ranked" };
@@ -12,6 +12,7 @@ export default async function PlayPage() {
     getCurrentUserAndPlayer(),
   ]);
   const lastSeason = recent.find((m) => m.season)?.season ?? "S4";
+  const latestRp = me.player ? await getLatestRp(me.player.id) : null;
 
   return (
     <PlayMode
@@ -20,6 +21,8 @@ export default async function PlayPage() {
       defaultSeason={lastSeason}
       mapImage={mapImage}
       currentUserId={me.user?.id ?? null}
+      myPlayerId={me.player?.id ?? null}
+      latestRp={latestRp}
     />
   );
 }
