@@ -21,7 +21,9 @@ alter table public.match_jumps
   add column if not exists pos_y numeric;
 
 -- Per-player RP timeline (was per-match). running_rp chains each player's RP.
-create or replace view public.rp_timeline
+-- Drop first: CREATE OR REPLACE can't reorder/rename existing view columns.
+drop view if exists public.rp_timeline;
+create view public.rp_timeline
 with (security_invoker = true) as
 select
   mp.player_id  as player_id,
