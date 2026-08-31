@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { PLAYER_COLORS } from "@/lib/ranks";
 import type { Platform } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
@@ -204,6 +205,65 @@ export async function claimPlayer(playerId: string) {
   revalidatePath("/settings");
 }
 
+const createPlayerSchema = z.object({
+  display_name: z.string().min(1).max(40),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+});
+
+/** Add a squadmate to the roster (RedSec Quads = 4 players max). */
+export async function createPlayer(input: z.input<typeof createPlayerSchema>) {
+  const parsed = createPlayerSchema.parse(input);
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("players")
+    .select("id", { count: "exact", head: true });
+  const n = count ?? 0;
+  if (n >= 4) throw new Error("Roster is full (max 4 players).");
+  const color = parsed.color ?? PLAYER_COLORS[n % PLAYER_COLORS.length];
+  const { error } = await supabase
+    .from("players")
+    .insert({ display_name: parsed.display_name, color });
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidatePath("/");
+  revalidatePath("/head-to-head");
+  revalidatePath("/matches/new");
+}
+
+/** Remove a player. Their per-match lines cascade-delete with them. */
+export async function deletePlayer(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("players").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidatePath("/");
+  revalidatePath("/head-to-head");
+  revalidatePath("/matches/new");
+}
+
+const posSchema = z.object({
+  id: z.string().uuid(),
+  pos_x: z.number(),
+  pos_y: z.number(),
+});
+
+/** Persist a drop-zone pin's map position (0..1 coords). */
+export async function updateLocationPosition(input: z.input<typeof posSchema>) {
+  const { id, pos_x, pos_y } = posSchema.parse(input);
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("locations")
+    .update({ pos_x: clamp(pos_x), pos_y: clamp(pos_y) })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/locations");
+  revalidatePath("/matches/new");
+}
+
 /* -------------------------------------------------------------------------- */
 /* Locations & feedback                                                       */
 /* -------------------------------------------------------------------------- */
@@ -223,6 +283,10 @@ export async function createLocation(input: z.input<typeof locationSchema>) {
       name: parsed.name,
       description: parsed.description ?? null,
       is_hot_drop: parsed.is_hot_drop,
+      // drop new pins near the center so they appear on the map immediately;
+      // they can be dragged into place from the Locations map editor.
+      pos_x: 0.5,
+      pos_y: 0.5,
     })
     .select("id")
     .single();

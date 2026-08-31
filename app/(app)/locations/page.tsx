@@ -4,7 +4,7 @@ import type { LocationStat } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AddLocation } from "@/components/add-location";
-import { DropMap } from "@/components/drop-map";
+import { LocationsMap } from "@/components/locations-map";
 import { fmtNum } from "@/lib/utils";
 import { MapPin, Flame, ChevronRight } from "lucide-react";
 
@@ -40,16 +40,7 @@ export default async function LocationsPage() {
           <CardTitle>Tactical map</CardTitle>
         </CardHeader>
         <CardContent>
-          <DropMap locations={locations} statsById={statsById} />
-          <div className="mt-3 flex items-center gap-4 text-[11px] text-muted">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary" /> Hot drop
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-accent" /> Standard
-            </span>
-            <span>Dot size = games played · glow = win rate</span>
-          </div>
+          <LocationsMap locations={locations} />
         </CardContent>
       </Card>
 
