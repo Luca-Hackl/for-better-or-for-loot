@@ -41,6 +41,9 @@ export type LocationFeedback = {
   created_at: string;
 };
 
+export type MatchStatus = "live" | "final";
+export type LiveEventKind = "start" | "kill" | "death" | "respawn" | "join" | "stop";
+
 export type MatchRow = {
   id: string;
   played_at: string;
@@ -62,6 +65,10 @@ export type MatchRow = {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  status: MatchStatus;
+  host_player_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
 };
 
 export type MatchPlayer = {
@@ -81,6 +88,22 @@ export type MatchPlayer = {
   rank_division: number | null;
   death_times: number[];
   time_seconds: number | null;
+  joined_at: string | null;
+  invited_by: string | null;
+};
+
+export type MatchEvent = {
+  id: string;
+  match_id: string;
+  player_id: string | null;
+  kind: LiveEventKind;
+  at_seconds: number;
+  pos_x: number | null;
+  pos_y: number | null;
+  death_event_id: string | null;
+  client_event_id: string;
+  meta: Record<string, unknown>;
+  created_at: string;
 };
 
 export type MatchJump = {
@@ -185,6 +208,7 @@ export type Database = {
       matches: Tbl<MatchRow>;
       match_players: Tbl<MatchPlayer>;
       match_jumps: Tbl<MatchJump>;
+      match_events: Tbl<MatchEvent>;
       allowed_emails: Tbl<{ email: string }>;
       app_settings: Tbl<AppSettingRow>;
     };
@@ -194,7 +218,12 @@ export type Database = {
       rp_timeline: ViewT<RpTimelinePoint>;
       season_summary: ViewT<SeasonSummary>;
     };
-    Functions: Empty;
+    Functions: {
+      finish_live_match: {
+        Args: { m_id: string; p_placement: number | null; p_total: number | null; p_notes: string | null };
+        Returns: undefined;
+      };
+    };
     Enums: Empty;
     CompositeTypes: Empty;
   };

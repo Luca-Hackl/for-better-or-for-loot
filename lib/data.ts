@@ -10,6 +10,7 @@ import type {
   MatchRow,
   MatchPlayer,
   MatchJump,
+  MatchEvent,
   LocationFeedback,
   MapImage,
 } from "@/lib/types";
@@ -19,8 +20,12 @@ export type MatchWithDetails = MatchRow & {
   match_jumps: (MatchJump & { locations: LocationRow | null })[];
 };
 
+export type LiveMatch = MatchWithDetails & { match_events: MatchEvent[] };
+
 const MATCH_SELECT =
   "*, match_players(*, players(*)), match_jumps(*, locations(*))";
+const LIVE_SELECT =
+  "*, match_players(*, players(*)), match_jumps(*, locations(*)), match_events(*)";
 
 export async function getCurrentUserAndPlayer() {
   const supabase = await createClient();
@@ -86,6 +91,7 @@ export async function getMatches(opts?: {
   let q = supabase
     .from("matches")
     .select(MATCH_SELECT)
+    .eq("status", "final")
     .order("played_at", { ascending: false });
   if (opts?.mode) q = q.eq("mode", opts.mode as MatchRow["mode"]);
   if (opts?.season) q = q.eq("season", opts.season);
@@ -103,6 +109,43 @@ export async function getMatch(id: string): Promise<MatchWithDetails | null> {
     .eq("id", id)
     .maybeSingle();
   return (data as unknown as MatchWithDetails | null) ?? null;
+}
+
+/** A live match with its event log, for the realtime session view. */
+export async function getLiveMatch(id: string): Promise<LiveMatch | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("matches").select(LIVE_SELECT).eq("id", id).maybeSingle();
+  return (data as unknown as LiveMatch | null) ?? null;
+}
+
+/** Live matches this player has been invited to but not yet joined. */
+export async function getMyPendingInvites(
+  playerId: string,
+): Promise<{ match_id: string; host_player_id: string | null; started_at: string | null }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("match_players")
+    .select("match_id, matches!inner(id, status, host_player_id, started_at)")
+    .eq("player_id", playerId)
+    .is("joined_at", null)
+    .eq("matches.status", "live");
+  return (
+    (data as unknown as { match_id: string; matches: { host_player_id: string | null; started_at: string | null } }[]) ?? []
+  ).map((r) => ({ match_id: r.match_id, host_player_id: r.matches?.host_player_id ?? null, started_at: r.matches?.started_at ?? null }));
+}
+
+/** The live match this player is currently in (joined), if any — for resuming. */
+export async function getActiveLiveMatchForPlayer(playerId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("match_players")
+    .select("match_id, matches!inner(status)")
+    .eq("player_id", playerId)
+    .not("joined_at", "is", null)
+    .eq("matches.status", "live")
+    .limit(1)
+    .maybeSingle();
+  return (data as unknown as { match_id: string } | null)?.match_id ?? null;
 }
 
 export async function getLocationStats(): Promise<LocationStat[]> {

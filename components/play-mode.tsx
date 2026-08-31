@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { createMatch, type MatchInput } from "@/lib/actions";
+import { createMatch, startLiveMatch, type MatchInput } from "@/lib/actions";
 import { compressImage } from "@/lib/image";
 import type { LocationRow, Player, MapImage } from "@/lib/types";
 import { TacticalMap } from "@/components/tactical-map";
@@ -33,6 +34,7 @@ import {
   Square,
   Crosshair,
   ScrollText,
+  Radio,
 } from "lucide-react";
 
 type GameEvent = { id: string; kind: "start" | "kill" | "death" | "respawn" | "stop"; t: number };
@@ -94,6 +96,7 @@ export function PlayMode({
   latestRp?: number | null;
 }) {
   const supabase = createClient();
+  const router = useRouter();
 
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<(typeof MODES)[number]["value"]>("ranked_quads");
@@ -119,6 +122,7 @@ export function PlayMode({
 
   const [restored, setRestored] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState<CelebrationData | null>(null);
 
@@ -265,6 +269,19 @@ export function PlayMode({
   };
 
   const activeObj = jumps.find((j) => j.key === activeJump) ?? jumps[0];
+  async function startLive() {
+    setStarting(true);
+    setError(null);
+    try {
+      const id = await startLiveMatch({ mode, season: season || null, squad });
+      localStorage.removeItem(DRAFT_KEY);
+      router.push(`/play/live/${id}`);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start live match");
+      setStarting(false);
+    }
+  }
   const jumpPoints = (list: JumpState[]) =>
     list
       .filter((j) => j.x != null && j.y != null)
@@ -510,6 +527,19 @@ export function PlayMode({
                   })}
                 </div>
               </div>
+              {myPlayerId ? (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-sm font-semibold">Playing together, live?</p>
+                  <p className="text-xs text-muted">
+                    Start a live match and invite your squad — everyone logs their own kills/deaths
+                    in real time and sees a shared game-log.
+                  </p>
+                  <Button size="sm" className="mt-2" disabled={starting || squad.length === 0} onClick={startLive}>
+                    {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4" />}
+                    Start live co-op
+                  </Button>
+                </div>
+              ) : null}
             </div>
           )}
 

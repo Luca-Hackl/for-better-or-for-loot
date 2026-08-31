@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { PLAYER_COLORS } from "@/lib/ranks";
-import type { Platform } from "@/lib/types";
+import type { Platform, MatchPlayer } from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
 /* Auth                                                                       */
@@ -389,6 +389,198 @@ export async function clearMapImage() {
   if (error) throw new Error(error.message);
   revalidatePath("/locations");
   revalidatePath("/matches/new");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live co-op match sessions                                                  */
+/* -------------------------------------------------------------------------- */
+
+async function requireMyPlayer(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+  const { data: me } = await supabase
+    .from("players")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (!me) throw new Error("Claim your player in Settings first to play live.");
+  return me.id as string;
+}
+
+const startLiveSchema = z.object({
+  mode: z.enum(["ranked_quads", "quads", "duos", "gauntlet"]),
+  season: z.string().nullable().optional(),
+  squad: z.array(z.string().uuid()).min(1),
+});
+
+/** Host starts a live match, seeds membership (self joined, others invited). */
+export async function startLiveMatch(input: z.input<typeof startLiveSchema>) {
+  const parsed = startLiveSchema.parse(input);
+  const supabase = await createClient();
+  const hostId = await requireMyPlayer(supabase);
+  const now = new Date().toISOString();
+
+  const { data: match, error } = await supabase
+    .from("matches")
+    .insert({
+      played_at: now,
+      season: parsed.season ?? null,
+      mode: parsed.mode,
+      is_ranked: parsed.mode === "ranked_quads",
+      map: "Fort Lyndon",
+      status: "live",
+      host_player_id: hostId,
+      started_at: now,
+      ocr_source: "manual",
+      created_by: hostId,
+    })
+    .select("id")
+    .single();
+  if (error || !match) throw new Error(error?.message ?? "Could not start match");
+
+  const rows = parsed.squad.map((pid) => ({
+    match_id: match.id,
+    player_id: pid,
+    joined_at: pid === hostId ? now : null,
+    invited_by: hostId,
+  }));
+  const { error: mpErr } = await supabase.from("match_players").insert(rows);
+  if (mpErr) throw new Error(mpErr.message);
+
+  await supabase.from("match_events").insert({
+    match_id: match.id,
+    player_id: hostId,
+    kind: "start",
+    at_seconds: 0,
+    client_event_id: crypto.randomUUID(),
+  });
+
+  return match.id as string;
+}
+
+export async function acceptInvite(matchId: string) {
+  const supabase = await createClient();
+  const me = await requireMyPlayer(supabase);
+  const { error } = await supabase
+    .from("match_players")
+    .update({ joined_at: new Date().toISOString() })
+    .eq("match_id", matchId)
+    .eq("player_id", me);
+  if (error) throw new Error(error.message);
+  await supabase.from("match_events").insert({
+    match_id: matchId,
+    player_id: me,
+    kind: "join",
+    at_seconds: 0,
+    client_event_id: crypto.randomUUID(),
+  });
+}
+
+export async function declineInvite(matchId: string) {
+  const supabase = await createClient();
+  const me = await requireMyPlayer(supabase);
+  await supabase
+    .from("match_players")
+    .delete()
+    .eq("match_id", matchId)
+    .eq("player_id", me)
+    .is("joined_at", null);
+}
+
+const liveEventSchema = z.object({
+  match_id: z.string().uuid(),
+  kind: z.enum(["kill", "death", "respawn"]),
+  at_seconds: z.coerce.number().int().min(0),
+  client_event_id: z.string().uuid(),
+  pos_x: z.number().min(0).max(1).nullable().optional(),
+  pos_y: z.number().min(0).max(1).nullable().optional(),
+  death_event_id: z.string().uuid().nullable().optional(),
+});
+
+/** Append one of my own events to the live game-log. Returns the new event id. */
+export async function logLiveEvent(input: z.input<typeof liveEventSchema>) {
+  const parsed = liveEventSchema.parse(input);
+  const supabase = await createClient();
+  const me = await requireMyPlayer(supabase);
+  const { data, error } = await supabase
+    .from("match_events")
+    .insert({
+      match_id: parsed.match_id,
+      player_id: me,
+      kind: parsed.kind,
+      at_seconds: parsed.at_seconds,
+      pos_x: parsed.pos_x ?? null,
+      pos_y: parsed.pos_y ?? null,
+      death_event_id: parsed.death_event_id ?? null,
+      client_event_id: parsed.client_event_id,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return data.id as string;
+}
+
+const liveStatSchema = z.object({
+  match_id: z.string().uuid(),
+  kills: z.coerce.number().int().min(0).optional(),
+  assists: z.coerce.number().int().min(0).optional(),
+  deaths: z.coerce.number().int().min(0).optional(),
+  revives: z.coerce.number().int().min(0).nullable().optional(),
+  damage: z.coerce.number().int().min(0).nullable().optional(),
+});
+
+/** Update my own live stat line. */
+export async function updateLiveStat(input: z.input<typeof liveStatSchema>) {
+  const parsed = liveStatSchema.parse(input);
+  const supabase = await createClient();
+  const me = await requireMyPlayer(supabase);
+  const patch: Partial<MatchPlayer> = {
+    ...(parsed.kills !== undefined ? { kills: parsed.kills } : {}),
+    ...(parsed.assists !== undefined ? { assists: parsed.assists } : {}),
+    ...(parsed.deaths !== undefined ? { deaths: parsed.deaths } : {}),
+    ...(parsed.revives !== undefined ? { revives: parsed.revives } : {}),
+    ...(parsed.damage !== undefined ? { damage: parsed.damage } : {}),
+  };
+  const { error } = await supabase
+    .from("match_players")
+    .update(patch)
+    .eq("match_id", parsed.match_id)
+    .eq("player_id", me);
+  if (error) throw new Error(error.message);
+}
+
+const finishLiveSchema = z.object({
+  match_id: z.string().uuid(),
+  placement: z.coerce.number().int().min(1).nullable().optional(),
+  total_squads: z.coerce.number().int().min(1).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
+
+/** Host finalizes the live match (drops never-joined invitees, flips to final). */
+export async function finishLiveMatch(input: z.input<typeof finishLiveSchema>) {
+  const parsed = finishLiveSchema.parse(input);
+  const supabase = await createClient();
+  await requireMyPlayer(supabase);
+  await supabase.from("match_events").insert({
+    match_id: parsed.match_id,
+    player_id: null,
+    kind: "stop",
+    at_seconds: 0,
+    client_event_id: crypto.randomUUID(),
+  });
+  const { error } = await supabase.rpc("finish_live_match", {
+    m_id: parsed.match_id,
+    p_placement: parsed.placement ?? null,
+    p_total: parsed.total_squads ?? null,
+    p_notes: parsed.notes ?? null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/");
+  revalidatePath("/matches");
+  revalidatePath("/head-to-head");
+  revalidatePath(`/matches/${parsed.match_id}`);
 }
 
 /* -------------------------------------------------------------------------- */
