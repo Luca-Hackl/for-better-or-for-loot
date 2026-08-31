@@ -196,6 +196,14 @@ export function LiveMatch({
             <Button size="sm" variant="outline" onClick={logKill} className="border-win/50 text-win hover:bg-win/15">
               <Crosshair className="h-4 w-4" /> Kill +1
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => bumpMyStat("assists", (myLine?.assists ?? 0) + 1)}
+              className="border-accent/50 text-accent hover:bg-accent/15"
+            >
+              +1 Assist
+            </Button>
             <Button size="sm" variant="danger" onClick={logDeath}>
               <Skull className="h-4 w-4" /> I died
             </Button>

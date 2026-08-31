@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Plus, Trash2, Loader2, Trophy, ImageUp, Crown, Users, MapPin, Check, Lock } from "lucide-react";
 
 type LineState = { kills: string; assists: string; deaths: string; revives: string; damage: string; was_mvp: boolean };
-type JumpState = { key: string; kind: "initial_drop" | "second_chance" | "respawn"; x: number | null; y: number | null; who: string[] };
+type JumpState = { key: string; kind: "initial_drop" | "second_chance" | "respawn"; x: number | null; y: number | null };
 
 const MODES = [
   { value: "ranked_quads", label: "Ranked Quads", squads: 25 },
@@ -72,7 +72,7 @@ export function MatchForm({
 
   const [squad, setSquad] = useState<string[]>(players.map((p) => p.id));
   const [stats, setStats] = useState<Record<string, LineState>>(Object.fromEntries(players.map((p) => [p.id, emptyLine()])));
-  const [jumps, setJumps] = useState<JumpState[]>([{ key: `j${jumpSeq++}`, kind: "initial_drop", x: null, y: null, who: [] }]);
+  const [jumps, setJumps] = useState<JumpState[]>([{ key: `j${jumpSeq++}`, kind: "initial_drop", x: null, y: null }]);
   const [activeJump, setActiveJump] = useState<string>(jumps[0].key);
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -99,7 +99,7 @@ export function MatchForm({
   const setPoint = (x: number, y: number) => setJumps((p) => p.map((j) => (j.key === activeJump ? { ...j, x, y } : j)));
   const addJump = () => {
     const key = `j${jumpSeq++}`;
-    setJumps((p) => [...p, { key, kind: "respawn", x: null, y: null, who: [] }]);
+    setJumps((p) => [...p, { key, kind: "respawn", x: null, y: null }]);
     setActiveJump(key);
   };
   const removeJump = (key: string) =>
@@ -109,9 +109,6 @@ export function MatchForm({
       return next.length ? next : p;
     });
   const setJumpKind = (key: string, kind: JumpState["kind"]) => setJumps((p) => p.map((j) => (j.key === key ? { ...j, kind } : j)));
-  const toggleWho = (key: string, pid: string) =>
-    setJumps((p) => p.map((j) => (j.key === key ? { ...j, who: j.who.includes(pid) ? j.who.filter((x) => x !== pid) : [...j.who, pid] } : j)));
-  const setWholeSquad = (key: string) => setJumps((p) => p.map((j) => (j.key === key ? { ...j, who: [] } : j)));
 
   const points = jumps
     .filter((j) => j.x != null && j.y != null)
@@ -145,10 +142,8 @@ export function MatchForm({
       jumps
         .filter((j) => j.x != null && j.y != null)
         .forEach((j, idx) => {
-          const targets = j.who.filter((id) => squad.includes(id));
-          const base = { pos_x: j.x as number, pos_y: j.y as number, jump_order: idx + 1, kind: j.kind };
-          if (targets.length === 0) jumpRows.push({ ...base, player_id: null });
-          else targets.forEach((pid) => jumpRows.push({ ...base, player_id: pid }));
+          const pid = j.kind === "initial_drop" ? null : myPlayerId ?? null;
+          jumpRows.push({ pos_x: j.x as number, pos_y: j.y as number, jump_order: idx + 1, kind: j.kind, player_id: pid });
         });
 
       const payload: MatchInput = {
@@ -351,15 +346,6 @@ export function MatchForm({
                       </button>
                     ) : null}
                   </div>
-                  {squad.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] uppercase tracking-wider text-muted">Who:</span>
-                      <WhoChip label="Whole squad" active={j.who.length === 0} onClick={() => setWholeSquad(j.key)} />
-                      {squad.map((id) => (
-                        <WhoChip key={id} label={nameOf(id)} color={colorOf(id)} active={j.who.includes(id)} onClick={() => toggleWho(j.key, id)} />
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
               );
             })}
@@ -418,13 +404,5 @@ function NumField({ label, value, onChange, disabled }: { label: string; value: 
       <Label className="text-[10px]">{label}</Label>
       <Input type="number" min={0} inputMode="numeric" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} placeholder="0" className="h-9 px-2 text-center disabled:opacity-40" />
     </div>
-  );
-}
-function WhoChip({ label, color, active, onClick }: { label: string; color?: string; active: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={(e) => { e.stopPropagation(); onClick(); }} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium", active ? "border-primary/50 bg-primary/15 text-primary" : "border-border text-muted hover:bg-card-hover")}>
-      {color ? <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} /> : null}
-      {label}
-    </button>
   );
 }

@@ -24,8 +24,6 @@ export type LiveMatch = MatchWithDetails & { match_events: MatchEvent[] };
 
 const MATCH_SELECT =
   "*, match_players(*, players(*)), match_jumps(*, locations(*))";
-const LIVE_SELECT =
-  "*, match_players(*, players(*)), match_jumps(*, locations(*)), match_events(*)";
 
 export async function getCurrentUserAndPlayer() {
   const supabase = await createClient();
@@ -103,19 +101,37 @@ export async function getMatches(opts?: {
 
 export async function getMatch(id: string): Promise<MatchWithDetails | null> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("matches")
-    .select(MATCH_SELECT)
-    .eq("id", id)
-    .maybeSingle();
-  return (data as unknown as MatchWithDetails | null) ?? null;
+  // Fetch the row + children separately so a nested-embed error can never
+  // null out a real match (which would render a false 404).
+  const { data: m } = await supabase.from("matches").select("*").eq("id", id).maybeSingle();
+  if (!m) return null;
+  const [{ data: mp }, { data: mj }] = await Promise.all([
+    supabase.from("match_players").select("*, players(*)").eq("match_id", id),
+    supabase.from("match_jumps").select("*, locations(*)").eq("match_id", id),
+  ]);
+  return {
+    ...(m as MatchRow),
+    match_players: (mp as unknown as MatchWithDetails["match_players"]) ?? [],
+    match_jumps: (mj as unknown as MatchWithDetails["match_jumps"]) ?? [],
+  };
 }
 
 /** A live match with its event log, for the realtime session view. */
 export async function getLiveMatch(id: string): Promise<LiveMatch | null> {
   const supabase = await createClient();
-  const { data } = await supabase.from("matches").select(LIVE_SELECT).eq("id", id).maybeSingle();
-  return (data as unknown as LiveMatch | null) ?? null;
+  const { data: m } = await supabase.from("matches").select("*").eq("id", id).maybeSingle();
+  if (!m) return null;
+  const [{ data: mp }, { data: mj }, { data: ev }] = await Promise.all([
+    supabase.from("match_players").select("*, players(*)").eq("match_id", id),
+    supabase.from("match_jumps").select("*, locations(*)").eq("match_id", id),
+    supabase.from("match_events").select("*").eq("match_id", id).order("at_seconds", { ascending: true }),
+  ]);
+  return {
+    ...(m as MatchRow),
+    match_players: (mp as unknown as MatchWithDetails["match_players"]) ?? [],
+    match_jumps: (mj as unknown as MatchWithDetails["match_jumps"]) ?? [],
+    match_events: (ev as unknown as MatchEvent[]) ?? [],
+  };
 }
 
 /** Live matches this player has been invited to but not yet joined. */

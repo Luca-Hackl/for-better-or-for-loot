@@ -36,6 +36,12 @@ export interface RpEstimate {
   assistRP: number;
   entryCost: number;
   total: number;
+  capReduction: number; // RP left on the table because kills/assists past 8 earn the reduced rate
+}
+
+function unclaimed(count: number, row: PlacementRow): number {
+  const over = Math.max(0, count - CAP);
+  return over * (row.base - row.reduced);
 }
 
 /** Estimate the RP change for a round. tierKey drives the entry cost. */
@@ -50,11 +56,13 @@ export function estimateRoundRp(input: {
   const killRP = scoreRp(input.kills, row);
   const assistRP = scoreRp(input.assists, row);
   const entryCost = input.tierKey ? TIER_MAP[input.tierKey]?.entryCost ?? 0 : 0;
+  const capReduction = unclaimed(input.kills, row) + unclaimed(input.assists, row);
   return {
     placementRP: row.placementRP,
     killRP,
     assistRP,
     entryCost,
     total: row.placementRP + killRP + assistRP - entryCost,
+    capReduction,
   };
 }

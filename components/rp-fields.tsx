@@ -120,21 +120,28 @@ export function RpFields({
   return (
     <div className="flex flex-col gap-3">
       {est ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-xs">
-          <Calculator className="h-3.5 w-3.5 text-accent" />
-          <span className="font-semibold" style={{ color: est.total >= 0 ? "#34d399" : "#f87171" }}>
-            {fmtDelta(est.total)} RP
-          </span>
-          <span className="text-muted">
-            = place {est.placementRP} + kills {est.killRP} + assists {est.assistRP} − entry {est.entryCost}
-          </span>
-          {touched ? (
-            <button type="button" onClick={applyEstimate} className="ml-auto text-accent hover:underline">
-              use calculated
-            </button>
-          ) : (
-            <span className="ml-auto text-[11px] text-muted-foreground">auto</span>
-          )}
+        <div className="flex flex-col gap-1 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <Calculator className="h-3.5 w-3.5 text-accent" />
+            <span className="font-semibold" style={{ color: est.total >= 0 ? "#34d399" : "#f87171" }}>
+              {fmtDelta(est.total)} RP
+            </span>
+            <span className="text-muted">
+              = place {est.placementRP} + kills {est.killRP} + assists {est.assistRP} − entry {est.entryCost}
+            </span>
+            {touched ? (
+              <button type="button" onClick={applyEstimate} className="ml-auto text-accent hover:underline">
+                use calculated
+              </button>
+            ) : (
+              <span className="ml-auto text-[11px] text-muted-foreground">auto</span>
+            )}
+          </div>
+          {est.capReduction > 0 ? (
+            <p className="text-warn">
+              ⚠ {est.capReduction} RP unclaimed — kills/assists past 8 only earn the reduced rate.
+            </p>
+          ) : null}
         </div>
       ) : null}
       <div className="grid grid-cols-2 gap-3">

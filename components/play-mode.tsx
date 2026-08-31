@@ -37,7 +37,7 @@ import {
   Radio,
 } from "lucide-react";
 
-type GameEvent = { id: string; kind: "start" | "kill" | "death" | "respawn" | "stop"; t: number };
+type GameEvent = { id: string; kind: "start" | "kill" | "assist" | "death" | "respawn" | "stop"; t: number };
 
 type LineState = {
   kills: string;
@@ -52,7 +52,6 @@ type JumpState = {
   kind: "initial_drop" | "second_chance" | "respawn";
   x: number | null;
   y: number | null;
-  who: string[];
 };
 
 const MODES = [
@@ -105,7 +104,7 @@ export function PlayMode({
   const [stats, setStats] = useState<Record<string, LineState>>(
     Object.fromEntries(players.map((p) => [p.id, emptyLine()])),
   );
-  const [jumps, setJumps] = useState<JumpState[]>([{ key: newKey(), kind: "initial_drop", x: null, y: null, who: [] }]);
+  const [jumps, setJumps] = useState<JumpState[]>([{ key: newKey(), kind: "initial_drop", x: null, y: null }]);
   const [activeJump, setActiveJump] = useState<string>(jumps[0].key);
   const [placement, setPlacement] = useState("");
   const [totalSquads, setTotalSquads] = useState("");
@@ -208,7 +207,7 @@ export function PlayMode({
     setSquad(players.map((p) => p.id));
     setStats(Object.fromEntries(players.map((p) => [p.id, emptyLine()])));
     const k = newKey();
-    setJumps([{ key: k, kind: "initial_drop", x: null, y: null, who: [] }]);
+    setJumps([{ key: k, kind: "initial_drop", x: null, y: null }]);
     setActiveJump(k);
     setPlacement("");
     setTotalSquads("");
@@ -230,7 +229,7 @@ export function PlayMode({
   const setPoint = (x: number, y: number) => setJumps((p) => p.map((j) => (j.key === activeJump ? { ...j, x, y } : j)));
   const addRespawn = () => {
     const key = newKey();
-    setJumps((p) => [...p, { key, kind: "respawn", x: null, y: null, who: [] }]);
+    setJumps((p) => [...p, { key, kind: "respawn", x: null, y: null }]);
     setActiveJump(key);
   };
   const removeJump = (key: string) =>
@@ -240,9 +239,6 @@ export function PlayMode({
       return next.length ? next : p;
     });
   const setJumpKind = (key: string, kind: JumpState["kind"]) => setJumps((p) => p.map((j) => (j.key === key ? { ...j, kind } : j)));
-  const toggleWho = (key: string, pid: string) =>
-    setJumps((p) => p.map((j) => (j.key === key ? { ...j, who: j.who.includes(pid) ? j.who.filter((x) => x !== pid) : [...j.who, pid] } : j)));
-  const setWholeSquad = (key: string) => setJumps((p) => p.map((j) => (j.key === key ? { ...j, who: [] } : j)));
 
   // timer controls
   const startTimer = () => {
@@ -255,6 +251,11 @@ export function PlayMode({
     if (startedAt == null) return;
     if (myPlayerId) setLine(myPlayerId, { kills: String((numOrNull(stats[myPlayerId].kills) ?? 0) + 1) });
     setEvents((e) => [...e, { id: newKey(), kind: "kill", t: elapsed }]);
+  };
+  const logAssist = () => {
+    if (startedAt == null) return;
+    if (myPlayerId) setLine(myPlayerId, { assists: String((numOrNull(stats[myPlayerId].assists) ?? 0) + 1) });
+    setEvents((e) => [...e, { id: newKey(), kind: "assist", t: elapsed }]);
   };
   const logDeath = () => {
     if (startedAt == null) return;
@@ -313,10 +314,9 @@ export function PlayMode({
       jumps
         .filter((j) => j.x != null && j.y != null)
         .forEach((j, idx) => {
-          const targets = j.who.filter((id) => squad.includes(id));
-          const base = { pos_x: j.x as number, pos_y: j.y as number, jump_order: idx + 1, kind: j.kind };
-          if (targets.length === 0) jumpRows.push({ ...base, player_id: null });
-          else targets.forEach((pid) => jumpRows.push({ ...base, player_id: pid }));
+          // initial drop = whole squad; redeploys/respawns belong to whoever placed them (you)
+          const pid = j.kind === "initial_drop" ? null : myPlayerId ?? null;
+          jumpRows.push({ pos_x: j.x as number, pos_y: j.y as number, jump_order: idx + 1, kind: j.kind, player_id: pid });
         });
 
       const timedDeaths = deathTimes.length;
@@ -427,9 +427,14 @@ export function PlayMode({
           ) : (
             <>
               {myPlayerId ? (
-                <Button size="sm" variant="outline" onClick={logKill} disabled={!running} className="border-win/50 text-win hover:bg-win/15">
-                  <Crosshair className="h-4 w-4" /> Kill +1
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" onClick={logKill} disabled={!running} className="border-win/50 text-win hover:bg-win/15">
+                    <Crosshair className="h-4 w-4" /> Kill +1
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={logAssist} disabled={!running} className="border-accent/50 text-accent hover:bg-accent/15">
+                    +1 Assist
+                  </Button>
+                </>
               ) : null}
               <Button size="sm" variant="danger" onClick={logDeath} disabled={!running}>
                 <Skull className="h-4 w-4" /> I died
@@ -460,6 +465,8 @@ export function PlayMode({
                   <span className="tnum w-10 shrink-0 text-muted-foreground">{mmss(ev.t)}</span>
                   {ev.kind === "kill" ? (
                     <span className="flex items-center gap-1.5 text-win"><Crosshair className="h-3.5 w-3.5" /> You got a kill</span>
+                  ) : ev.kind === "assist" ? (
+                    <span className="flex items-center gap-1.5 text-accent"><Crosshair className="h-3.5 w-3.5" /> You got an assist</span>
                   ) : ev.kind === "death" ? (
                     <span className="flex items-center gap-1.5 text-loss"><Skull className="h-3.5 w-3.5" /> You went down</span>
                   ) : ev.kind === "stop" ? (
@@ -554,7 +561,6 @@ export function PlayMode({
                 label={initialJump.x != null ? "Drop set — tap to move" : "Tap anywhere you dropped"}
                 {...bg}
               />
-              <WhoRow squad={squad} who={initialJump.who} nameOf={nameOf} colorOf={colorOf} onWhole={() => setWholeSquad(initialJump.key)} onToggle={(id) => toggleWho(initialJump.key, id)} />
             </div>
           )}
 
@@ -592,7 +598,6 @@ export function PlayMode({
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
-                      <WhoRow squad={squad} who={j.who} nameOf={nameOf} colorOf={colorOf} onWhole={() => setWholeSquad(j.key)} onToggle={(id) => toggleWho(j.key, id)} />
                     </div>
                   );
                 })}
@@ -747,25 +752,5 @@ function NumField({ label, value, onChange, disabled }: { label: string; value: 
       <Label className="text-[10px]">{label}</Label>
       <Input type="number" min={0} inputMode="numeric" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} placeholder="0" className="h-9 px-2 text-center disabled:opacity-40" />
     </div>
-  );
-}
-function WhoRow({ squad, who, nameOf, colorOf, onWhole, onToggle }: { squad: string[]; who: string[]; nameOf: (id: string) => string; colorOf: (id: string) => string; onWhole: () => void; onToggle: (id: string) => void }) {
-  if (squad.length === 0) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] uppercase tracking-wider text-muted">Who:</span>
-      <Chip label="Whole squad" active={who.length === 0} onClick={onWhole} />
-      {squad.map((id) => (
-        <Chip key={id} label={nameOf(id)} color={colorOf(id)} active={who.includes(id)} onClick={() => onToggle(id)} />
-      ))}
-    </div>
-  );
-}
-function Chip({ label, color, active, onClick }: { label: string; color?: string; active: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={(e) => { e.stopPropagation(); onClick(); }} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium", active ? "border-primary/50 bg-primary/15 text-primary" : "border-border text-muted hover:bg-card-hover")}>
-      {color ? <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} /> : null}
-      {label}
-    </button>
   );
 }
