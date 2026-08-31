@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { cn, fmtDelta } from "@/lib/utils";
 import { compressImage } from "@/lib/image";
-import { Plus, Trash2, Loader2, Trophy, ImageUp, Crown, Users, MapPin, Check } from "lucide-react";
+import { Plus, Trash2, Loader2, Trophy, ImageUp, Crown, Users, MapPin, Check, Lock } from "lucide-react";
 
 type LineState = {
   kills: string;
@@ -70,12 +70,14 @@ export function MatchForm({
   seasons,
   defaultSeason,
   mapImage,
+  currentUserId,
 }: {
   players: Player[];
   locations: LocationRow[];
   seasons: string[];
   defaultSeason: string;
   mapImage?: MapImage | null;
+  currentUserId?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -114,6 +116,10 @@ export function MatchForm({
   const nameOf = (id: string) => players.find((p) => p.id === id)?.display_name ?? "Player";
   const colorOf = (id: string) => players.find((p) => p.id === id)?.color ?? "#8b95a7";
   const locName = (id: string) => locations.find((l) => l.id === id)?.name;
+  const lockedByOther = (id: string) => {
+    const p = players.find((x) => x.id === id);
+    return !!p?.auth_user_id && p.auth_user_id !== currentUserId;
+  };
 
   const autoDelta = useMemo(() => {
     const s = numOrNull(rpStart);
@@ -402,7 +408,9 @@ export function MatchForm({
             ) : null}
           </div>
 
-          {squad.map((id) => (
+          {squad.map((id) => {
+            const locked = lockedByOther(id);
+            return (
             <div key={id} className="rounded-lg border border-border bg-surface/50 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-semibold">
@@ -411,9 +419,10 @@ export function MatchForm({
                 </span>
                 <button
                   type="button"
+                  disabled={locked}
                   onClick={() => toggleMvp(id)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold transition-colors",
+                    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-40",
                     stats[id].was_mvp
                       ? "border-warn/40 bg-warn/20 text-warn"
                       : "border-transparent text-muted hover:bg-card-hover",
@@ -423,14 +432,20 @@ export function MatchForm({
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                <NumField label="Kills" value={stats[id].kills} onChange={(v) => setLine(id, { kills: v })} />
-                <NumField label="Assists" value={stats[id].assists} onChange={(v) => setLine(id, { assists: v })} />
-                <NumField label="Deaths" value={stats[id].deaths} onChange={(v) => setLine(id, { deaths: v })} />
-                <NumField label="Revives" value={stats[id].revives} onChange={(v) => setLine(id, { revives: v })} />
-                <NumField label="Damage" value={stats[id].damage} onChange={(v) => setLine(id, { damage: v })} />
+                <NumField label="Kills" value={stats[id].kills} onChange={(v) => setLine(id, { kills: v })} disabled={locked} />
+                <NumField label="Assists" value={stats[id].assists} onChange={(v) => setLine(id, { assists: v })} disabled={locked} />
+                <NumField label="Deaths" value={stats[id].deaths} onChange={(v) => setLine(id, { deaths: v })} disabled={locked} />
+                <NumField label="Revives" value={stats[id].revives} onChange={(v) => setLine(id, { revives: v })} disabled={locked} />
+                <NumField label="Damage" value={stats[id].damage} onChange={(v) => setLine(id, { damage: v })} disabled={locked} />
               </div>
+              {locked ? (
+                <p className="mt-2 flex items-center gap-1 text-[11px] text-muted">
+                  <Lock className="h-3 w-3" /> Only {nameOf(id)} can enter their stats — they add them from the match afterward.
+                </p>
+              ) : null}
             </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -579,7 +594,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function NumField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function NumField({ label, value, onChange, disabled }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean }) {
   return (
     <div className="flex flex-col gap-1">
       <Label className="text-[10px]">{label}</Label>
@@ -588,9 +603,10 @@ function NumField({ label, value, onChange }: { label: string; value: string; on
         min={0}
         inputMode="numeric"
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
-        className="h-9 px-2 text-center"
+        className="h-9 px-2 text-center disabled:opacity-40"
       />
     </div>
   );

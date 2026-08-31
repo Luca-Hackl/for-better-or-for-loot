@@ -111,18 +111,36 @@ export async function createMatch(input: MatchInput) {
 
   const matchId = match.id;
 
-  const playerRows = parsed.players.map((p) => ({
-    match_id: matchId,
-    player_id: p.player_id,
-    kills: p.kills,
-    assists: p.assists,
-    deaths: p.deaths,
-    revives: p.revives ?? null,
-    damage: p.damage ?? null,
-    was_mvp: p.was_mvp,
-  }));
-  const { error: mpErr } = await supabase.from("match_players").insert(playerRows);
-  if (mpErr) throw new Error(mpErr.message);
+  // Only write stat lines the creator is allowed to (their own player + any
+  // unclaimed players). Lines for a squadmate who has claimed their own profile
+  // are left for that person to fill in from the match afterward.
+  const submittedIds = parsed.players.map((p) => p.player_id);
+  const { data: owners } = await supabase
+    .from("players")
+    .select("id, auth_user_id")
+    .in("id", submittedIds);
+  const writable = new Set(
+    (owners ?? [])
+      .filter((p) => p.auth_user_id == null || p.auth_user_id === user?.id)
+      .map((p) => p.id),
+  );
+
+  const playerRows = parsed.players
+    .filter((p) => writable.has(p.player_id))
+    .map((p) => ({
+      match_id: matchId,
+      player_id: p.player_id,
+      kills: p.kills,
+      assists: p.assists,
+      deaths: p.deaths,
+      revives: p.revives ?? null,
+      damage: p.damage ?? null,
+      was_mvp: p.was_mvp,
+    }));
+  if (playerRows.length > 0) {
+    const { error: mpErr } = await supabase.from("match_players").insert(playerRows);
+    if (mpErr) throw new Error(mpErr.message);
+  }
 
   if (parsed.jumps.length > 0) {
     const jumpRows = parsed.jumps.map((j) => ({
@@ -151,6 +169,51 @@ export async function deleteMatch(id: string) {
   revalidatePath("/");
   revalidatePath("/matches");
   revalidatePath("/locations");
+  revalidatePath("/head-to-head");
+}
+
+const myStatsSchema = z.object({
+  match_id: z.string().uuid(),
+  kills: z.coerce.number().int().min(0).default(0),
+  assists: z.coerce.number().int().min(0).default(0),
+  deaths: z.coerce.number().int().min(0).default(0),
+  revives: z.coerce.number().int().min(0).nullable().optional(),
+  damage: z.coerce.number().int().min(0).nullable().optional(),
+  was_mvp: z.boolean().default(false),
+});
+
+/** Add or update the signed-in user's OWN stat line for a match. RLS ensures a
+ *  user can only write the row for the player they've claimed. */
+export async function upsertMyStats(input: z.input<typeof myStatsSchema>) {
+  const parsed = myStatsSchema.parse(input);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+  const { data: me } = await supabase
+    .from("players")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (!me) throw new Error("Claim your player in Settings first, then you can enter your stats.");
+
+  const { error } = await supabase.from("match_players").upsert(
+    {
+      match_id: parsed.match_id,
+      player_id: me.id,
+      kills: parsed.kills,
+      assists: parsed.assists,
+      deaths: parsed.deaths,
+      revives: parsed.revives ?? null,
+      damage: parsed.damage ?? null,
+      was_mvp: parsed.was_mvp,
+    },
+    { onConflict: "match_id,player_id" },
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath(`/matches/${parsed.match_id}`);
+  revalidatePath("/");
   revalidatePath("/head-to-head");
 }
 

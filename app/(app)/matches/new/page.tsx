@@ -1,14 +1,15 @@
-import { getLocations, getPlayers, getMatches, getMapImage } from "@/lib/data";
+import { getLocations, getPlayers, getMatches, getMapImage, getCurrentUserAndPlayer } from "@/lib/data";
 import { MatchForm } from "@/components/match-form";
 
 export const metadata = { title: "Log a match — RedSec Ranked" };
 
 export default async function NewMatchPage() {
-  const [players, locations, recent, mapImage] = await Promise.all([
+  const [players, locations, recent, mapImage, me] = await Promise.all([
     getPlayers(),
     getLocations(),
     getMatches({ limit: 30 }),
     getMapImage(),
+    getCurrentUserAndPlayer(),
   ]);
 
   const seasons = Array.from(
@@ -31,6 +32,7 @@ export default async function NewMatchPage() {
         seasons={seasons}
         defaultSeason={lastSeason}
         mapImage={mapImage}
+        currentUserId={me.user?.id ?? null}
       />
     </div>
   );

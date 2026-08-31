@@ -2,13 +2,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { getMatch } from "@/lib/data";
+import { getMatch, getCurrentUserAndPlayer } from "@/lib/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlacementBadge } from "@/components/placement-badge";
 import { RpPill } from "@/components/rp-pill";
 import { RankBadge } from "@/components/rank-badge";
 import { DeleteMatchButton } from "@/components/delete-match-button";
+import { MyStatsPanel } from "@/components/my-stats-panel";
 import { kd } from "@/lib/utils";
 import { ArrowLeft, MapPin, Crown, ChevronDown } from "lucide-react";
 
@@ -30,10 +31,13 @@ export default async function MatchDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const match = await getMatch(id);
+  const [match, me] = await Promise.all([getMatch(id), getCurrentUserAndPlayer()]);
   if (!match) notFound();
 
   const jumps = [...match.match_jumps].sort((a, b) => a.jump_order - b.jump_order);
+  const myLine = me.player
+    ? match.match_players.find((mp) => mp.player_id === me.player!.id) ?? null
+    : null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -121,6 +125,9 @@ export default async function MatchDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Enter my own stats */}
+      {me.player ? <MyStatsPanel matchId={match.id} me={me.player} existing={myLine} /> : null}
 
       {/* Jump path */}
       {jumps.length > 0 ? (
