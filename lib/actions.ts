@@ -195,6 +195,17 @@ export async function claimPlayer(playerId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not signed in");
+
+  // Refuse to claim a profile already owned by someone else.
+  const { data: target } = await supabase
+    .from("players")
+    .select("auth_user_id")
+    .eq("id", playerId)
+    .maybeSingle();
+  if (target?.auth_user_id && target.auth_user_id !== user.id) {
+    throw new Error("That player is already claimed by someone else.");
+  }
+
   // clear any previous link for this user, then claim
   await supabase.from("players").update({ auth_user_id: null }).eq("auth_user_id", user.id);
   const { error } = await supabase

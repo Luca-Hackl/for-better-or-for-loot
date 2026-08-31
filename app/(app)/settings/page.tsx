@@ -18,7 +18,7 @@ export default async function SettingsPage() {
       </div>
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Players</h2>
-      <SettingsPlayers players={players} currentPlayerId={me.player?.id ?? null} />
+      <SettingsPlayers players={players} currentUserId={me.user?.id ?? null} />
 
       <Card className="mt-6">
         <CardHeader>

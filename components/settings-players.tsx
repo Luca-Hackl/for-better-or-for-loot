@@ -8,36 +8,56 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { PLAYER_COLORS } from "@/lib/ranks";
-import { Loader2, Check, UserCheck, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Check, UserCheck, Trash2, UserPlus, Lock } from "lucide-react";
 
 const MAX_PLAYERS = 4;
 
 export function SettingsPlayers({
   players,
-  currentPlayerId,
+  currentUserId,
 }: {
   players: Player[];
-  currentPlayerId: string | null;
+  currentUserId: string | null;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      {players.map((p) => (
-        <PlayerRow key={p.id} player={p} isMe={p.id === currentPlayerId} canDelete={players.length > 1} />
-      ))}
+      {players.map((p) => {
+        const isMe = !!currentUserId && p.auth_user_id === currentUserId;
+        const lockedByOther = !!p.auth_user_id && p.auth_user_id !== currentUserId;
+        return (
+          <PlayerRow
+            key={p.id}
+            player={p}
+            isMe={isMe}
+            editable={!lockedByOther}
+            claimable={p.auth_user_id == null}
+            canDelete={!lockedByOther && players.length > 1}
+          />
+        );
+      })}
       {players.length < MAX_PLAYERS ? <AddPlayerCard existing={players.length} /> : null}
     </div>
   );
 }
 
-function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+function ColorPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (c: string) => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="flex items-center gap-2">
       {PLAYER_COLORS.map((c) => (
         <button
           key={c}
           type="button"
+          disabled={disabled}
           onClick={() => onChange(c)}
-          className="h-7 w-7 rounded-full transition-transform hover:scale-110"
+          className="h-7 w-7 rounded-full transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50"
           style={{ backgroundColor: c, boxShadow: value === c ? `0 0 0 2px ${c}` : undefined }}
           aria-label={c}
         />
@@ -45,8 +65,9 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
       <input
         type="color"
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent"
+        className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent disabled:opacity-50"
       />
     </div>
   );
@@ -55,10 +76,14 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
 function PlayerRow({
   player,
   isMe,
+  editable,
+  claimable,
   canDelete,
 }: {
   player: Player;
   isMe: boolean;
+  editable: boolean;
+  claimable: boolean;
   canDelete: boolean;
 }) {
   const router = useRouter();
@@ -81,35 +106,49 @@ function PlayerRow({
             <span className="ml-auto inline-flex items-center gap-1 rounded bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">
               <UserCheck className="h-3 w-3" /> You
             </span>
-          ) : (
+          ) : !editable ? (
+            <span className="ml-auto inline-flex items-center gap-1 rounded bg-card-hover px-2 py-0.5 text-[11px] font-medium text-muted">
+              <Lock className="h-3 w-3" /> Claimed
+            </span>
+          ) : claimable ? (
             <Button
               variant="ghost"
               size="sm"
               className="ml-auto"
+              disabled={pending}
               onClick={() =>
                 start(async () => {
-                  await claimPlayer(player.id);
-                  router.refresh();
+                  setError(null);
+                  try {
+                    await claimPlayer(player.id);
+                    router.refresh();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Failed");
+                  }
                 })
               }
             >
               This is me
             </Button>
-          )}
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label>Display name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!editable} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label>EA ID</Label>
-            <Input value={eaId} onChange={(e) => setEaId(e.target.value)} placeholder="gamertag" />
+            <Input value={eaId} onChange={(e) => setEaId(e.target.value)} placeholder="gamertag" disabled={!editable} />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Platform</Label>
-            <Select value={platform} onChange={(e) => setPlatform(e.target.value as "pc" | "xbl" | "psn")}>
+            <Select
+              value={platform}
+              disabled={!editable}
+              onChange={(e) => setPlatform(e.target.value as "pc" | "xbl" | "psn")}
+            >
               <option value="pc">PC</option>
               <option value="xbl">Xbox</option>
               <option value="psn">PlayStation</option>
@@ -118,72 +157,78 @@ function PlayerRow({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label>Accent color</Label>
-          <ColorPicker value={colorVal} onChange={setColorVal} />
+          <ColorPicker value={colorVal} onChange={setColorVal} disabled={!editable} />
         </div>
 
         {error ? <p className="text-xs text-loss">{error}</p> : null}
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                setError(null);
-                setSaved(false);
-                try {
-                  await updatePlayer({
-                    id: player.id,
-                    display_name: name,
-                    ea_id: eaId || null,
-                    platform: platform as Player["platform"],
-                    color: colorVal,
-                  });
-                  setSaved(true);
-                  router.refresh();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "Failed");
-                }
-              })
-            }
-          >
-            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
-            {saved ? "Saved" : "Save"}
-          </Button>
-
-          {canDelete ? (
-            confirmDel ? (
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-[11px] text-muted">Delete + all their matches?</span>
-                <Button variant="ghost" size="sm" onClick={() => setConfirmDel(false)} disabled={pending}>
-                  No
-                </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  disabled={pending}
-                  onClick={() =>
-                    start(async () => {
-                      try {
-                        await deletePlayer(player.id);
-                        router.refresh();
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : "Failed");
-                        setConfirmDel(false);
-                      }
-                    })
+        {editable ? (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  setError(null);
+                  setSaved(false);
+                  try {
+                    await updatePlayer({
+                      id: player.id,
+                      display_name: name,
+                      ea_id: eaId || null,
+                      platform: platform as Player["platform"],
+                      color: colorVal,
+                    });
+                    setSaved(true);
+                    router.refresh();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Failed");
                   }
-                >
-                  <Trash2 className="h-4 w-4" /> Delete
+                })
+              }
+            >
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
+              {saved ? "Saved" : "Save"}
+            </Button>
+
+            {canDelete ? (
+              confirmDel ? (
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="text-[11px] text-muted">Delete + all their matches?</span>
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmDel(false)} disabled={pending}>
+                    No
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() =>
+                      start(async () => {
+                        try {
+                          await deletePlayer(player.id);
+                          router.refresh();
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "Failed");
+                          setConfirmDel(false);
+                        }
+                      })
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" /> Delete
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setConfirmDel(true)}>
+                  <Trash2 className="h-4 w-4" />
                 </Button>
-              </div>
-            ) : (
-              <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setConfirmDel(true)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )
-          ) : null}
-        </div>
+              )
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Only {player.display_name} can edit this profile.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
