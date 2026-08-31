@@ -169,15 +169,17 @@ export async function getRpTimeline(playerId?: string): Promise<RpTimelinePoint[
 }
 
 /** The player's most recent running RP total (their "current RP"). */
-export async function getLatestRp(playerId: string): Promise<number | null> {
+export async function getLatestRp(
+  playerId: string,
+  opts?: { excludeMatchId?: string },
+): Promise<number | null> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let q = supabase
     .from("rp_timeline")
-    .select("running_rp, played_at")
-    .eq("player_id", playerId)
-    .order("played_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .select("running_rp, played_at, match_id")
+    .eq("player_id", playerId);
+  if (opts?.excludeMatchId) q = q.neq("match_id", opts.excludeMatchId);
+  const { data } = await q.order("played_at", { ascending: false }).limit(1).maybeSingle();
   return (data?.running_rp as number | undefined) ?? null;
 }
 

@@ -65,7 +65,7 @@ const JUMP_KINDS = [
   { value: "second_chance", label: "Second Chance" },
   { value: "respawn", label: "Respawn" },
 ] as const;
-const STEPS = ["Setup", "Drop", "Respawns", "Result", "Scoreboard", "Finish"];
+const STEPS = ["Setup", "Drop", "Respawns", "Scoreboard", "Result", "Finish"];
 const DRAFT_KEY = "redsec:play-draft-v2";
 
 const emptyLine = (): LineState => ({ kills: "", assists: "", deaths: "", revives: "", damage: "", was_mvp: false });
@@ -603,7 +603,7 @@ export function PlayMode({
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="flex flex-col gap-4">
               <SectionTitle icon={<Trophy className="h-4 w-4 text-warn" />}>How did it end?</SectionTitle>
               <div className="grid grid-cols-2 gap-3">
@@ -619,7 +619,16 @@ export function PlayMode({
                   <div>
                     <Label>Your RP</Label>
                     <div className="mt-2">
-                      <RpFields latestRp={latestRp ?? null} initial={myRp ?? undefined} onChange={setMyRp} />
+                      <RpFields
+                        latestRp={latestRp ?? null}
+                        initial={myRp ?? undefined}
+                        estimate={{
+                          placement: numOrNull(placement),
+                          kills: myPlayerId ? numOrNull(stats[myPlayerId].kills) ?? 0 : 0,
+                          assists: myPlayerId ? numOrNull(stats[myPlayerId].assists) ?? 0 : 0,
+                        }}
+                        onChange={setMyRp}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -631,7 +640,7 @@ export function PlayMode({
             </div>
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <div className="flex flex-col gap-3">
               <SectionTitle icon={<Users className="h-4 w-4" />}>Scoreboard</SectionTitle>
               {squad.map((id) => {

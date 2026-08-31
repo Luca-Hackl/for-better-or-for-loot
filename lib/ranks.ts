@@ -29,15 +29,15 @@ export interface Tier {
 }
 
 export const TIERS: Tier[] = [
-  { key: "unranked", label: "Unranked", color: "#8b95a7", divisions: 1, floorRP: 0, entryCost: 0 },
+  { key: "unranked", label: "Unranked", color: "#8b95a7", divisions: 1, floorRP: -1, entryCost: 0 },
   { key: "rookie", label: "Rookie", color: "#b9c2d0", divisions: 5, floorRP: 0, entryCost: 0 },
-  { key: "bronze", label: "Bronze", color: "#cd7f32", divisions: 5, floorRP: 1250, entryCost: 10 },
-  { key: "silver", label: "Silver", color: "#c0c7d1", divisions: 5, floorRP: 2500, entryCost: 20 },
-  { key: "gold", label: "Gold", color: "#ffcc33", divisions: 5, floorRP: 3750, entryCost: 25 },
-  { key: "platinum", label: "Platinum", color: "#3fe0d0", divisions: 5, floorRP: 6250, entryCost: 40 },
-  { key: "diamond", label: "Diamond", color: "#5ea2ff", divisions: 5, floorRP: 10000, entryCost: 50 },
-  { key: "master", label: "Master", color: "#c46bff", divisions: 5, floorRP: 15200, entryCost: 60 },
-  { key: "elite", label: "Elite", color: "#ff3b4e", divisions: 1, floorRP: 20000, entryCost: 60 },
+  { key: "bronze", label: "Bronze", color: "#cd7f32", divisions: 5, floorRP: 600, entryCost: 20 },
+  { key: "silver", label: "Silver", color: "#c0c7d1", divisions: 5, floorRP: 1600, entryCost: 30 },
+  { key: "gold", label: "Gold", color: "#ffcc33", divisions: 5, floorRP: 2850, entryCost: 40 },
+  { key: "platinum", label: "Platinum", color: "#3fe0d0", divisions: 5, floorRP: 5100, entryCost: 50 },
+  { key: "diamond", label: "Diamond", color: "#5ea2ff", divisions: 5, floorRP: 8600, entryCost: 60 },
+  { key: "master", label: "Master", color: "#c46bff", divisions: 5, floorRP: 13350, entryCost: 90 },
+  { key: "elite", label: "Elite", color: "#ff3b4e", divisions: 1, floorRP: 19350, entryCost: 90 },
 ];
 
 export const TIER_MAP: Record<TierKey, Tier> = Object.fromEntries(

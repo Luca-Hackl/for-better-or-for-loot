@@ -43,7 +43,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
   const myLine = me.player
     ? match.match_players.find((mp) => mp.player_id === me.player!.id) ?? null
     : null;
-  const latestRp = me.player ? await getLatestRp(me.player.id) : null;
+  const latestRp = me.player ? await getLatestRp(me.player.id, { excludeMatchId: id }) : null;
 
   // marker-less jump points for the read-only map
   const jumpPoints = jumps
@@ -169,6 +169,7 @@ export default async function MatchDetailPage({ params }: { params: Promise<{ id
           existing={myLine}
           isRanked={match.is_ranked}
           latestRp={latestRp}
+          placement={match.placement}
         />
       ) : null}
 

@@ -24,12 +24,14 @@ export function MyStatsPanel({
   existing,
   isRanked,
   latestRp,
+  placement,
 }: {
   matchId: string;
   me: Player;
   existing: MatchPlayer | null;
   isRanked: boolean;
   latestRp: number | null;
+  placement: number | null;
 }) {
   const router = useRouter();
   const [kills, setKills] = useState(existing ? String(existing.kills) : "");
@@ -69,6 +71,7 @@ export function MyStatsPanel({
             <div className="mt-2">
               <RpFields
                 latestRp={latestRp}
+                estimate={{ placement, kills: numOrNull(kills) ?? 0, assists: numOrNull(assists) ?? 0 }}
                 initial={
                   existing
                     ? {

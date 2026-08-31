@@ -238,7 +238,16 @@ export function MatchForm({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <RpFields latestRp={latestRp ?? null} initial={myRp ?? undefined} onChange={setMyRp} />
+            <RpFields
+              latestRp={latestRp ?? null}
+              initial={myRp ?? undefined}
+              estimate={{
+                placement: numOrNull(placement),
+                kills: myPlayerId ? numOrNull(stats[myPlayerId].kills) ?? 0 : 0,
+                assists: myPlayerId ? numOrNull(stats[myPlayerId].assists) ?? 0 : 0,
+              }}
+              onChange={setMyRp}
+            />
           </CardContent>
         </Card>
       ) : null}
