@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/*
+  RedSec Ranked Dashboard — dark "esport" theme.
+  Tokens are plain CSS vars mapped into Tailwind v4 via @theme inline,
+  so utilities like bg-card / text-muted / border-border resolve to these.
+*/
+
+:root {
+  --background: #07090d;
+  --surface: #0d1017;
+  --card: #0f131b;
+  --card-hover: #141924;
+  --border: #1e2530;
+  --border-strong: #2b3340;
+  --foreground: #e7ecf3;
+  --muted: #8b95a7;
+  --muted-foreground: #64707f;
+
+  /* RedSec = "Redacted Sector": crimson primary, cyan secondary */
+  --primary: #ff3b4e;
+  --primary-foreground: #fff5f6;
+  --accent: #35d0e0;
+  --accent-foreground: #06232a;
+
+  --win: #34d399;
+  --loss: #f87171;
+  --warn: #fbbf24;
+
+  /* per-player accent defaults (overridable per player row) */
+  --p1: #ff3b4e;
+  --p2: #35d0e0;
+
+  --ring: #ff3b4e;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-win: var(--win);
+  --color-loss: var(--loss);
+  --color-warn: var(--warn);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.25rem);
+  --radius-sm: calc(var(--radius) - 0.4rem);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(255, 59, 78, 0.08), transparent 60%),
+    radial-gradient(1000px 500px at 0% 110%, rgba(53, 208, 224, 0.06), transparent 55%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* tabular figures for stat readouts */
+.tnum {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* thin custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glow-primary {
+  box-shadow: 0 0 0 1px rgba(255, 59, 78, 0.25), 0 8px 40px -12px rgba(255, 59, 78, 0.35);
+}
