@@ -7,7 +7,7 @@ import { createMatch, type MatchInput } from "@/lib/actions";
 import { compressImage } from "@/lib/image";
 import type { LocationRow, Player, MapImage } from "@/lib/types";
 import { TIERS, TIER_MAP, ROMAN } from "@/lib/ranks";
-import { TacticalMap } from "@/components/tactical-map";
+import { MapPicker } from "@/components/map-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -415,12 +415,11 @@ export function PlayMode({
           {step === 1 && (
             <div className="flex flex-col gap-3">
               <SectionTitle icon={<MapPin className="h-4 w-4 text-primary" />}>Where did you drop?</SectionTitle>
-              <TacticalMap
+              <MapPicker
                 locations={locations}
-                mode="select"
                 selectedId={initialJump.location_id || null}
                 onSelect={pickLocation}
-                label={initialJump.location_id ? locName(initialJump.location_id) : "Tap your drop spot"}
+                label={initialJump.location_id ? locName(initialJump.location_id) ?? null : "Tap or click to drop"}
                 {...bg}
               />
               <WhoRow squad={squad} who={initialJump.who} nameOf={nameOf} colorOf={colorOf} onWhole={() => setWholeSquad(initialJump.key)} onToggle={(id) => toggleWho(initialJump.key, id)} />
@@ -432,12 +431,11 @@ export function PlayMode({
             <div className="flex flex-col gap-3">
               <SectionTitle icon={<RotateCcw className="h-4 w-4 text-accent" />}>Redeploys &amp; respawns (optional)</SectionTitle>
               {respawns.length > 0 ? (
-                <TacticalMap
+                <MapPicker
                   locations={locations}
-                  mode="select"
                   selectedId={activeObj?.location_id || null}
                   onSelect={pickLocation}
-                  label={`Placing respawn — tap the map`}
+                  label="Placing respawn — tap or click the map"
                   {...bg}
                 />
               ) : (

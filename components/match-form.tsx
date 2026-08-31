@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createMatch, type MatchInput } from "@/lib/actions";
 import type { LocationRow, Player, MapImage } from "@/lib/types";
 import { TIERS, TIER_MAP, ROMAN } from "@/lib/ranks";
-import { TacticalMap } from "@/components/tactical-map";
+import { MapPicker } from "@/components/map-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -445,9 +445,8 @@ export function MatchForm({
           <p className="text-xs text-muted">
             Select a step below, then tap its spot on the map.
           </p>
-          <TacticalMap
+          <MapPicker
             locations={locations}
-            mode="select"
             selectedId={activeJumpObj?.location_id || null}
             onSelect={pickLocation}
             label={mapLabel}

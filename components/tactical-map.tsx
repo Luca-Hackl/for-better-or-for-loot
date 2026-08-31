@@ -107,9 +107,9 @@ export function TacticalMap({
     <div
       ref={ref}
       onClick={
-        mode === "edit" && onCreateAt
+        onCreateAt
           ? (e) => {
-              // only fire for clicks on the empty map (background), not on a pin
+              // fire only for clicks on the empty map (background), not on a pin
               if (e.target === e.currentTarget) {
                 const p = clientToRel(e.clientX, e.clientY);
                 onCreateAt(p.x, p.y);
