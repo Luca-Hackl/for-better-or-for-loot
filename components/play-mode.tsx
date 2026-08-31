@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createMatch, type MatchInput } from "@/lib/actions";
 import { compressImage } from "@/lib/image";
 import type { LocationRow, Player, MapImage } from "@/lib/types";
 import { TacticalMap } from "@/components/tactical-map";
 import { RpFields, type RpValue } from "@/components/rp-fields";
+import { NumStepper } from "@/components/num-stepper";
+import { Celebration, type CelebrationData } from "@/components/celebration";
+import { getRankByRp, TIERS } from "@/lib/ranks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -88,7 +90,6 @@ export function PlayMode({
   myPlayerId?: string | null;
   latestRp?: number | null;
 }) {
-  const router = useRouter();
   const supabase = createClient();
 
   const [step, setStep] = useState(0);
@@ -115,6 +116,7 @@ export function PlayMode({
   const [restored, setRestored] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [celebrate, setCelebrate] = useState<CelebrationData | null>(null);
 
   const isRanked = mode === "ranked_quads";
   const modeSquads = MODES.find((m) => m.value === mode)?.squads;
@@ -322,8 +324,33 @@ export function PlayMode({
       };
       const id = await createMatch(payload);
       localStorage.removeItem(DRAFT_KEY);
-      router.push(`/matches/${id}`);
-      router.refresh();
+
+      // rank-up detection vs the player's previous rank
+      let promoted = false;
+      if (isRanked && myRp?.rank_tier && latestRp != null) {
+        const prevIdx = TIERS.findIndex((t) => t.key === getRankByRp(latestRp).tier.key);
+        const newIdx = TIERS.findIndex((t) => t.key === myRp.rank_tier);
+        promoted = newIdx > prevIdx;
+      }
+      const myStats = myPlayerId ? stats[myPlayerId] : null;
+      const place = numOrNull(placement);
+      setCelebrate({
+        matchId: id,
+        won: place === 1,
+        placement: place,
+        totalSquads: numOrNull(totalSquads) ?? modeSquads ?? null,
+        isRanked,
+        rpDelta: myRp?.rp_delta ?? null,
+        rpAfter: myRp?.rp_after ?? null,
+        rankTier: myRp?.rank_tier ?? null,
+        rankDivision: myRp?.rank_division ?? null,
+        promoted,
+        kills: myStats ? numOrNull(myStats.kills) ?? 0 : 0,
+        assists: myStats ? numOrNull(myStats.assists) ?? 0 : 0,
+        deaths: timedDeaths > 0 ? timedDeaths : myStats ? numOrNull(myStats.deaths) ?? 0 : 0,
+        timeSeconds: startedAt != null ? elapsed : null,
+      });
+      setSaving(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
       setSaving(false);
@@ -332,6 +359,15 @@ export function PlayMode({
 
   return (
     <div className="mx-auto max-w-2xl">
+      {celebrate ? (
+        <Celebration
+          data={celebrate}
+          onAnother={() => {
+            setCelebrate(null);
+            discard();
+          }}
+        />
+      ) : null}
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -545,10 +581,10 @@ export function PlayMode({
                       </button>
                     </div>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                      <NumField label="Kills" value={stats[id].kills} onChange={(v) => setLine(id, { kills: v })} disabled={locked} />
-                      <NumField label="Assists" value={stats[id].assists} onChange={(v) => setLine(id, { assists: v })} disabled={locked} />
-                      <NumField label={isMine && deathTimes.length ? `Deaths (${deathTimes.length})` : "Deaths"} value={isMine && deathTimes.length ? String(deathTimes.length) : stats[id].deaths} onChange={(v) => setLine(id, { deaths: v })} disabled={locked || (isMine && deathTimes.length > 0)} />
-                      <NumField label="Revives" value={stats[id].revives} onChange={(v) => setLine(id, { revives: v })} disabled={locked} />
+                      <NumStepper label="Kills" value={stats[id].kills} onChange={(v) => setLine(id, { kills: v })} disabled={locked} accent="#ff3b4e" />
+                      <NumStepper label="Assists" value={stats[id].assists} onChange={(v) => setLine(id, { assists: v })} disabled={locked} />
+                      <NumStepper label={isMine && deathTimes.length ? `Deaths (${deathTimes.length})` : "Deaths"} value={isMine && deathTimes.length ? String(deathTimes.length) : stats[id].deaths} onChange={(v) => setLine(id, { deaths: v })} disabled={locked || (isMine && deathTimes.length > 0)} />
+                      <NumStepper label="Revives" value={stats[id].revives} onChange={(v) => setLine(id, { revives: v })} disabled={locked} />
                       <NumField label="Damage" value={stats[id].damage} onChange={(v) => setLine(id, { damage: v })} disabled={locked} />
                     </div>
                     {locked ? (
