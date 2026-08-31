@@ -17,10 +17,12 @@ import {
   LogOut,
   Menu,
   X,
+  Gamepad2,
 } from "lucide-react";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/play", label: "Play mode", icon: Gamepad2 },
   { href: "/matches", label: "Matches", icon: Swords },
   { href: "/locations", label: "Drop Zones", icon: MapPin },
   { href: "/head-to-head", label: "Head-to-Head", icon: Users },
@@ -69,9 +71,14 @@ export function AppShell({
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface/60 p-4 md:flex">
         <Brand />
         <div className="mt-6">{nav}</div>
-        <Link href="/matches/new" className="mt-6">
+        <Link href="/play" className="mt-6">
           <Button className="w-full">
-            <Plus className="h-4 w-4" /> Log a match
+            <Gamepad2 className="h-4 w-4" /> Play mode
+          </Button>
+        </Link>
+        <Link href="/matches/new" className="mt-2">
+          <Button variant="outline" className="w-full">
+            <Plus className="h-4 w-4" /> Quick log
           </Button>
         </Link>
         <div className="mt-auto pt-6">
@@ -105,9 +112,14 @@ export function AppShell({
         {open ? (
           <div className="border-b border-border bg-surface p-4 md:hidden">
             {nav}
-            <Link href="/matches/new" onClick={() => setOpen(false)} className="mt-4 block">
+            <Link href="/play" onClick={() => setOpen(false)} className="mt-4 block">
               <Button className="w-full">
-                <Plus className="h-4 w-4" /> Log a match
+                <Gamepad2 className="h-4 w-4" /> Play mode
+              </Button>
+            </Link>
+            <Link href="/matches/new" onClick={() => setOpen(false)} className="mt-2 block">
+              <Button variant="outline" className="w-full">
+                <Plus className="h-4 w-4" /> Quick log
               </Button>
             </Link>
             <form action={signOut} className="mt-2">

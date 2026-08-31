@@ -4,29 +4,12 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { setMapImage, clearMapImage } from "@/lib/actions";
+import { compressImage } from "@/lib/image";
 import { Button } from "@/components/ui/button";
 import { ImageUp, Loader2, Trash2 } from "lucide-react";
 
-const MAP_PATH = "map/fort-lyndon.png";
-const MAX_BYTES = 5 * 1024 * 1024;
-
-function readDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const dims = { width: img.naturalWidth, height: img.naturalHeight };
-      URL.revokeObjectURL(url);
-      if (dims.width > 0 && dims.height > 0) resolve(dims);
-      else reject(new Error("Image has no dimensions"));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read that image"));
-    };
-    img.src = url;
-  });
-}
+const MAP_PATH = "map/background";
+const MAX_BYTES = 15 * 1024 * 1024; // pre-compression cap on the source file
 
 export function MapUploader({ hasMap }: { hasMap: boolean }) {
   const router = useRouter();
@@ -42,20 +25,24 @@ export function MapUploader({ hasMap }: { hasMap: boolean }) {
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError("Image is over 5 MB — please use a smaller screenshot.");
+      setError("Image is too large — please use a smaller screenshot.");
       return;
     }
     setBusy(true);
     try {
-      // measure from the LOCAL file (not the uploaded URL, which may be cached)
-      const dims = await readDimensions(file);
+      // compress + measure from the local file (aspect ratio is preserved)
+      const { file: img, width, height } = await compressImage(file, {
+        maxDim: 2400,
+        quality: 0.85,
+      });
+      if (!width || !height) throw new Error("Could not read that image");
       const { error: upErr } = await supabase.storage
         .from("screenshots")
-        .upload(MAP_PATH, file, { upsert: true, contentType: file.type });
+        .upload(MAP_PATH, img, { upsert: true, contentType: img.type });
       if (upErr) throw new Error(upErr.message);
       const base = supabase.storage.from("screenshots").getPublicUrl(MAP_PATH).data.publicUrl;
       const url = `${base}?v=${Date.now()}`; // cache-bust the overwrite
-      await setMapImage({ url, width: dims.width, height: dims.height });
+      await setMapImage({ url, width, height });
       router.refresh();
     } catch (e) {
       setError(
@@ -114,8 +101,9 @@ export function MapUploader({ hasMap }: { hasMap: boolean }) {
       </div>
       {error ? <p className="text-xs text-loss">{error}</p> : null}
       <p className="text-[11px] text-muted-foreground">
-        Drop in your own screenshot of the in-game Fort Lyndon map (≤5 MB). Then use “Arrange pins”
-        to drag each drop zone onto its real spot — pins stay aligned at any size.
+        Drop in your own screenshot of the in-game Fort Lyndon map. It’s compressed
+        automatically before upload. Then use “Arrange pins” to drag each drop zone onto its real
+        spot — pins stay aligned at any size.
       </p>
     </div>
   );

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { cn, fmtDelta } from "@/lib/utils";
+import { compressImage } from "@/lib/image";
 import { Plus, Trash2, Loader2, Trophy, ImageUp, Crown, Users, MapPin, Check } from "lucide-react";
 
 type LineState = {
@@ -187,11 +188,12 @@ export function MatchForm({
 
       let screenshotUrl: string | null = null;
       if (file) {
-        const ext = file.name.split(".").pop() || "png";
+        const { file: img } = await compressImage(file, { maxDim: 1600, quality: 0.8 });
+        const ext = img.name.split(".").pop() || "webp";
         const path = `${crypto.randomUUID()}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("screenshots")
-          .upload(path, file, { upsert: false });
+          .upload(path, img, { upsert: false, contentType: img.type });
         if (upErr) throw new Error(`Screenshot upload failed: ${upErr.message}`);
         screenshotUrl = supabase.storage.from("screenshots").getPublicUrl(path).data.publicUrl;
       }
